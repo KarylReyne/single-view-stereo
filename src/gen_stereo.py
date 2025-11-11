@@ -9,18 +9,20 @@ def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--out", type=str, required=True, help="output path")
     p.add_argument("--n", type=int, default=100, help="number of stereo pairs")
+    p.add_argument("--start", type=int, default=0, help="start index")
     p.add_argument("--width", type=int, default=512, help="width of images")
     p.add_argument("--height", type=int, default=512, help="height of images")
-    p.add_argument("--baseline_min", type=float, default=0.06, help="minimum allowd baseline")
-    p.add_argument("--baseline_max", type=float, default=0.12, help="maximum allowd baseline")
+    p.add_argument("--baselines", type=str, default="0.06,0.08,0.10,0.12,0.14", help="comma-separated baselines")
     p.add_argument("--fov_min", type=float, default=45.0, help="minimum allowd fov")
     p.add_argument("--fov_max", type=float, default=70.0, help="maximum allowd baseline")
+    p.add_argument("--fixed_fov", type=float, default=60.0, help="fixed fov")
     p.add_argument("--seed", type=int, default=42, help="random seed")
     return p.parse_args(argv)
 
 A = parse_args()
 os.makedirs(A.out, exist_ok=True)
 random.seed(A.seed)
+_baselines = [float(x) for x in A.baselines.split(",") if x.strip()]
 
 # start with a clean scene
 bpy.ops.wm.read_factory_settings(use_empty=True)
@@ -136,7 +138,7 @@ def remove_camera(cam_obj):
     bpy.data.cameras.remove(cam_data, do_unlink=True)
 
 # main generation loop
-for i in range(A.n):
+for i in range(A.start, A.start + A.n):
     # create subdirectory
     idx = f"{i:03d}"
     sample_dir = os.path.join(A.out, idx)
@@ -151,8 +153,8 @@ for i in range(A.n):
 
     add_random_mesh()
 
-    baseline = random.uniform(A.baseline_min, A.baseline_max)
-    fov_deg  = random.uniform(A.fov_min, A.fov_max)
+    baseline = random.choice(_baselines)
+    fov_deg  = A.fixed_fov if A.fixed_fov is not None else random.uniform(A.fov_min, A.fov_max)
     camL, camR = create_cameras(baseline, fov_deg)
 
     fx, fy, cx, cy = intrinsics(A.width, A.height, fov_deg)
