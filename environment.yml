@@ -17,3 +17,4 @@ dependencies:
     - mathutils==3.3.0
     - pandas==2.3.3
     - matplotlib
+    - tueplots

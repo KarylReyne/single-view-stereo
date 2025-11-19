@@ -1,3 +1,41 @@
+from torch.utils.data import Dataset
+import os
+import json
+import math
+from PIL import Image
+
+
+# returns baseline/fov for a meta file
+def _read_meta(meta_path):
+    baseline, fov = 0.08, 60.0
+    if os.path.exists(meta_path):
+        with open(meta_path, "r") as f:
+            m = json.load(f)
+
+        if "baseline_m" in m:
+          baseline = float(m["baseline_m"])
+
+        if "fov_deg"   in m:
+          fov = float(m["fov_deg"])
+
+        # Fallbacks
+        # No FOV in meta file
+        if (m.get("fov_deg") is None) and "fx" in m and "width" in m:
+            # calculate fov from width and focal length
+            fov = math.degrees(2.0 * math.atan((float(m["width"])*0.5)/float(m["fx"])))
+
+        # No baseline in meta file
+        if (m.get("baseline_m") is None) and "cam_left" in m and "cam_right" in m:
+            # calculate baseline from x coordinates of both cameras
+            try:
+                tx_l = float(m["cam_left"]["matrix_world"][0][3])
+                tx_r = float(m["cam_right"]["matrix_world"][0][3])
+                baseline = abs(tx_r - tx_l)
+            except Exception:
+                pass
+    return max(0.01, min(1.0, baseline)), max(20.0, min(120.0, fov))
+
+
 # Describes stereo dataset
 class StereoScenesDataset(Dataset):
     """Nur Baseline-Token + Side-Token (<LEFT>/<RIGHT>)."""

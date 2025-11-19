@@ -1,3 +1,8 @@
+from torch.utils.data import Sampler
+from collections import defaultdict
+import random
+
+
 class BalancedByBaselineSampler(Sampler):
     """Round-robin über Baseline-Buckets; pro Step zufälliger Index aus Bucket."""
     def __init__(self, samples, batch_size=1, steps_per_epoch=2000):

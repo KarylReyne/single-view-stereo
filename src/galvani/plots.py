@@ -4,7 +4,8 @@ import matplotlib.image as mpimg
 from disparity import estimate_disparity_px
 
 b = 20
-dir = 'output'
+DATA_ROOT = "../../data/galvani"
+dir = f'{DATA_ROOT}/output'
 bilder = [
     f'{dir}/stereo_B{b}_left.png',
     f'{dir}/stereo_B{b}_right.png',
@@ -19,7 +20,7 @@ for i, datei in enumerate(bilder):
     plt.axis('off')
 
 plt.tight_layout()
-plt.show()
+plt.savefig(f"{dir}/plot_B{b}.png")
 
 disp_stats = estimate_disparity_px(bilder[0], bilder[1])
 print(disp_stats)

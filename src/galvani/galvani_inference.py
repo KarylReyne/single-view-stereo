@@ -12,7 +12,8 @@ from peft import LoraConfig, get_peft_model, set_peft_model_state_dict
 
 # configuration
 MODEL_ID  = "runwayml/stable-diffusion-v1-5"
-CKPT_DIR  = "/content/lora_out"
+DATA_ROOT = "../../data/galvani"
+CKPT_DIR  = f"{DATA_ROOT}/lora_out"
 W, H      = 512, 512
 DEVICE    = "cuda"
 
@@ -89,7 +90,7 @@ else:
 # generation
 def generate_stereo_img2img(
     b_cm=8, fov=60, core="street scene",
-    steps=28, guidance=5.0, strength=0.25, seed=123, out="/content/output"
+    steps=28, guidance=5.0, strength=0.25, seed=123, out=f"{DATA_ROOT}/output"
 ):
     os.makedirs(out, exist_ok=True)
     g = torch.Generator(device=DEVICE).manual_seed(seed)
