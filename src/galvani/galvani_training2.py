@@ -6,6 +6,7 @@ from tqdm import tqdm
 from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 from tueplots.constants.color import rgb
+from peft import LoraConfig, get_peft_model, get_peft_model_state_dict
 
 from dataset import StereoScenesDataset
 from sampler import BalancedByBaselineSampler
@@ -23,17 +24,18 @@ OUTPUT_DIR = f"{DATA_ROOT}/lora_out2"
 
 # settings
 R_UNET     = 16
-UNET_DROPOUT = 0.01
+UNET_DROPOUT = 0.0
 R_TE       = 8
-TEXTENCODER_DROPOUT = 0.01
+TEXTENCODER_DROPOUT = 0.0
 LR         = 3e-5
-BATCHSIZE  = 16 # 1
-IMAGE_SIZE = (384, 384)
+BATCHSIZE  = 1
+IMAGE_SIZE = (512, 512)
 
 # training
-STEPS_PER_EPOCH = 2000
 # MAX_STEPS = 25000
+# STEPS_PER_EPOCH = 2000
 MAX_STEPS = 1000
+STEPS_PER_EPOCH = 100
 GRAD_ACCUM  = 4
 WEIGHT_DECAY = 1e-2
 DEVICE = "cuda"
@@ -59,8 +61,6 @@ for m in [pipe.unet, pipe.vae, pipe.text_encoder]:
 
 
 # LoRA
-from peft import LoraConfig, get_peft_model, get_peft_model_state_dict
-
 # freeze base
 for p in pipe.unet.parameters(): p.requires_grad_(False)
 for p in pipe.vae.parameters():  p.requires_grad_(False)
@@ -217,7 +217,8 @@ while step < MAX_STEPS:
         # print(f"\tstep: {step}/{MAX_STEPS}\tloss: {loss} (mean({loss_weight} * {per_ex}))")
 
         # recording loss for plotting
-        if step % 4 == 0:
+        recording_freq = 1
+        if step % recording_freq == 0:
             loss_per_step.append(float(loss.cpu().detach().numpy()))
             steps.append(step)
 
@@ -233,7 +234,6 @@ while step < MAX_STEPS:
         step += 1
         pbar.set_postfix(loss=f"{loss.item():.4f}")
         pbar.update(1)
-
 
         if step >= MAX_STEPS:
             break
@@ -289,7 +289,6 @@ pipe.save_lora_weights(
 )
 
 # Text-Encoder-LoRA
-from peft import get_peft_model_state_dict
 te_lora_sd = get_peft_model_state_dict(pipe.text_encoder)
 torch.save(te_lora_sd, os.path.join(OUTPUT_DIR, "stereo_te.safetensors"))
 
