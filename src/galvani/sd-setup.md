@@ -1,7 +1,7 @@
 ### change directory
 ```
 conda activate stereoview
-cd src/galvani/stereodiffusion
+cd src/galvani/stereo_diffusion
 ```
 
 ### stablediffusion
