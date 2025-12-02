@@ -22,7 +22,7 @@ We use original Stable Diffusion model and DPT depth model, so you need to downl
 - open `txt2stereoimg.ipynb` and run all cells.
 
 ## 2. Image as depth to Stereo image generation
-We use original Stable Diffusion depth model and DPT depth model, so you need to download these models first. You can download the original Stable Diffusion depth model from [here](https://huggingface.co/stabilityai/stable-diffusion-2-depth/blob/main/512-depth-ema.ckpt). Then, you need to put Stable Diffusion depth model in `models` folder.
+We use original Stable Diffusion depth model and DPT depth model, so you need to download these models first. You can download the original Stable Diffusion depth model from [here](https://hupipggingface.co/stabilityai/stable-diffusion-2-depth/blob/main/512-depth-ema.ckpt). Then, you need to put Stable Diffusion depth model in `models` folder.
 
 - clone [stablediffusion](https://github.com/Stability-AI/stablediffusion)
 - run `pip install -r stablediffusion/requirements.txt` to install the required packages.
@@ -34,8 +34,6 @@ We use DPT depth model, so you need to download this model first. You can downlo
 - clone [prompt-to-prompt](https://github.com/google/prompt-to-prompt), [stablediffusion](https://github.com/Stability-AI/stablediffusion) and [DPT](https://github.com/isl-org/DPT)
 - run `pip install -r prompt-to-prompt/requirements.txt` to install the required packages.
 - run `python img2stereo.py --depthmodel_path=midas_models/dpt_hybrid-midas-501f0c75.pt  --img_path="path/to/your/image"`
-
-<!-- python img2stereo.py --depthmodel_path=midas_models/dpt_hybrid-midas-501f0c75.pt  --img_path="../../../data/galvani/fixed_baselines/000/000_left.png" -->
 
 # Acknowledgements
 

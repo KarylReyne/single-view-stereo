@@ -130,7 +130,7 @@ class CheckpointFunction(torch.autograd.Function):
         ctx.input_tensors = list(args[:length])
         ctx.input_params = list(args[length:])
         ctx.gpu_autocast_kwargs = {"enabled": torch.is_autocast_enabled(),
-                                   "dtype": torch.get_autocast_gpu_dtype(),
+                                   "dtype": torch.get_autocast_dtype('cuda'), # was torch.get_autocast_gpu_dtype(),
                                    "cache_enabled": torch.is_autocast_cache_enabled()}
         with torch.no_grad():
             output_tensors = ctx.run_function(*ctx.input_tensors)
