@@ -22,7 +22,7 @@ We use original Stable Diffusion model and DPT depth model, so you need to downl
 - open `txt2stereoimg.ipynb` and run all cells.
 
 ## 2. Image as depth to Stereo image generation
-We use original Stable Diffusion depth model and DPT depth model, so you need to download these models first. You can download the original Stable Diffusion depth model from [here](https://hupipggingface.co/stabilityai/stable-diffusion-2-depth/blob/main/512-depth-ema.ckpt). Then, you need to put Stable Diffusion depth model in `models` folder.
+We use original Stable Diffusion depth model and DPT depth model, so you need to download these models first. You can download the original Stable Diffusion depth model from [here](https://huggingface.co/stabilityai/stable-diffusion-2-depth/blob/main/512-depth-ema.ckpt). Then, you need to put Stable Diffusion depth model in `models` folder.
 
 - clone [stablediffusion](https://github.com/Stability-AI/stablediffusion)
 - run `pip install -r stablediffusion/requirements.txt` to install the required packages.
