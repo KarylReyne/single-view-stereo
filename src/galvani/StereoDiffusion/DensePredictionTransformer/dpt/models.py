@@ -111,11 +111,14 @@ class DPTDepthModel(DPT):
         if path is not None:
             self.load(path)
 
-    def forward(self, x):
+    def forward(self, x, force_shift=None):
         inv_depth = super().forward(x).squeeze(dim=1)
 
         if self.invert:
-            depth = self.scale * inv_depth + self.shift
+            if force_shift is None:
+                depth = self.scale * inv_depth + self.shift
+            else:
+                depth = self.scale * inv_depth + force_shift
             depth[depth < 1e-8] = 1e-8
             depth = 1.0 / depth
             return depth

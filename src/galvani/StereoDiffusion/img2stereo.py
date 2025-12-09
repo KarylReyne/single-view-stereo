@@ -25,12 +25,16 @@ import shutil
 from torch.optim.adam import Adam
 import torchvision
 
+sys.path.append('..')
+from QwenPromptInterpreter.prompt2float import interpret_prompt
+from misc_util import get_config
+
+
 scheduler = DDIMScheduler(beta_start=0.00085, beta_end=0.012, beta_schedule="scaled_linear", clip_sample=False, set_alpha_to_one=False)
 device = torch.device('cuda:0') if torch.cuda.is_available() else torch.device('cpu')
 GUIDANCE_SCALE = 7.5
 NUM_DDIM_STEPS = 50
-MY_TOKEN = ''
-ldm_stable = StableDiffusionPipeline.from_pretrained("CompVis/stable-diffusion-v1-4", use_auth_token=MY_TOKEN, scheduler=scheduler).to(device)
+ldm_stable = StableDiffusionPipeline.from_pretrained("CompVis/stable-diffusion-v1-4", scheduler=scheduler).to(device)
 try:
     ldm_stable.disable_xformers_memory_efficient_attention()
 except AttributeError:
@@ -240,6 +244,11 @@ def parse_args():
         choices=["uni", "bi"],
         default="uni"
     )
+    parser.add_argument(
+        "--baseline_prompt",
+        type=str,
+        default="B=4.0"
+    )
     return parser.parse_args()
 
 def load_512(image_path, left=0, right=0, top=0, bottom=0):
@@ -290,6 +299,10 @@ def run_inv_sd(image,args):
     print("showing from left to right: the ground truth image, the vq-autoencoder reconstruction, the null-text inverted image")
     # ptp_utils.view_images([image_gt, image_enc, image_inv[0]])
     # show_cross_attention(controller, 16, ["up", "down"])
+
+    qpi_config = get_config(path="../QwenPromptInterpreter/cfg/config.json")
+    prompted_baseline = interpret_prompt(args.baseline_prompt, qpi_config)
+    print(f"custom baseline set to B={prompted_baseline}") 
         
     net_w = net_h = 384
     depthmodel = DPTDepthModel(
@@ -300,7 +313,7 @@ def run_inv_sd(image,args):
     ).cuda()
     image_gt_ = torch.tensor(np.expand_dims(image_gt/255,0).transpose(0,3,1,2)/255,device=device,dtype=torch.float32)
     with torch.no_grad():
-        prediction = depthmodel.forward(image_gt_)
+        prediction = depthmodel.forward(image_gt_, force_shift=None)
     disp = _norm_depth(prediction)
     del depthmodel
 
@@ -393,11 +406,11 @@ def run_inv_sd(image,args):
     image_pair = rearrange(image,'b h w c->h (b w) c')
 
 
-    return image, image_pair
+    return image, image_pair, prompted_baseline
 
 if __name__ == "__main__":
 
     args = parse_args()
     image  = load_512(args.img_path)
-    out_image,image_pair = run_inv_sd(image,args)
-    Image.fromarray(image_pair).save(os.path.join('outputs',f'{args.img_path.split("/")[-1]}'))
+    out_image, image_pair, prompted_baseline = run_inv_sd(image,args)
+    Image.fromarray(image_pair).save(os.path.join('outputs',f'{args.img_path.split("/")[-1].split(".")[0]}_B{prompted_baseline}.png'))

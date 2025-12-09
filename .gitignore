@@ -210,17 +210,14 @@ __marimo__/
 .DS_Store
 
 
-# galvani
+# data
 data/galvani/**
 
-# stereo diffusion
+# models
 src/galvani/StereoDiffusion/midas_models/dpt_hybrid-midas-501f0c75.pt
-src/galvani/StereoDiffusion/outputs/*
 src/galvani/StereoDiffusion/models/512-depth-ema.ckpt
 src/galvani/StereoDiffusion/models/v2-1_768-ema-pruned.ckpt
+src/galvani/StereoDiffusion/models/qwen2.5_7b_instruct
 
-# dpt
-
-# stable diffusion
-
-# prompt to prompt
+# output
+src/galvani/StereoDiffusion/outputs/*
