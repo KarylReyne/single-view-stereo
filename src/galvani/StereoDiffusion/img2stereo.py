@@ -302,7 +302,7 @@ def run_inv_sd(image,args):
 
     qpi_config = get_config(path="../QwenPromptInterpreter/cfg/config.json")
     prompted_baseline = interpret_prompt(args.baseline_prompt, qpi_config)
-    print(f"custom baseline set to B={prompted_baseline}") 
+    print(f"custom baseline set to B={prompted_baseline}")
         
     net_w = net_h = 384
     depthmodel = DPTDepthModel(
@@ -313,7 +313,7 @@ def run_inv_sd(image,args):
     ).cuda()
     image_gt_ = torch.tensor(np.expand_dims(image_gt/255,0).transpose(0,3,1,2)/255,device=device,dtype=torch.float32)
     with torch.no_grad():
-        prediction = depthmodel.forward(image_gt_, force_shift=None)
+        prediction = depthmodel.forward(image_gt_)
     disp = _norm_depth(prediction)
     del depthmodel
 
@@ -329,7 +329,10 @@ def run_inv_sd(image,args):
         latent: Optional[torch.FloatTensor] = None,
         uncond_embeddings=None,
         start_time=50,
-        return_type='image',disparity=disp):
+        return_type='image',
+        disparity=disp,
+        prompted_baseline=None
+    ):
 
 
         sa = 10
@@ -372,8 +375,8 @@ def run_inv_sd(image,args):
                 elif isinstance(disparity,np.ndarray):
                     disparity = resize(disparity,(64,64))
                 # latents = stereo_shift_torch(latents[:1],disparity,stereo_balance=-1)
-                sacle_factor = 8
-                latents_ts = stereo_shift_torch(latents[:1], disparity, sacle_factor=sacle_factor)[1:]
+                scale_factor_percent = 8
+                latents_ts = stereo_shift_torch(latents[:1], disparity, scale_factor_percent=scale_factor_percent, B=prompted_baseline)[1:]
                 # latents_np_ = process_pixels_rgba_naive(latents_np[0])
                 # latents_ts =torch.tensor(rearrange(latents_np,'b h w c -> b c h w'),device=device)
                 latents = torch.cat([latents[:1],latents_ts],0)
@@ -386,7 +389,7 @@ def run_inv_sd(image,args):
                     latents[1:][mask] = latents_ts[mask]
 
             if  (i > 10 and i % 10 == 0):
-                latents_ts = stereo_shift_torch(latents[:1], disparity, sacle_factor=sacle_factor)[1:]
+                latents_ts = stereo_shift_torch(latents[:1], disparity, scale_factor_percent=scale_factor_percent, B=prompted_baseline)[1:]
                 # latents_ts =torch.tensor(rearrange(latents_r_np,'b h w c -> b c h w'),device=device)
                 latents[1:][mask] = latents_ts[mask]
                 # latents[1:][mask] = replacement
@@ -402,15 +405,25 @@ def run_inv_sd(image,args):
     # image_ = rearrange(image,'b h w c->h (b w) c')
 
     controller = EmptyControl()
-    image, latent = text2stereoimage_ldm_stable(ldm_stable, prompts*2, controller,uncond_embeddings = uncond_embeddings,latent=torch.concat([x_t,x_t],0),disparity=disp)
+    image, latent = text2stereoimage_ldm_stable(
+        ldm_stable, 
+        prompts*2, 
+        controller, 
+        uncond_embeddings=uncond_embeddings, 
+        latent=torch.concat([x_t,x_t],0), 
+        disparity=disp,
+        prompted_baseline=prompted_baseline
+    )
     image_pair = rearrange(image,'b h w c->h (b w) c')
 
-
-    return image, image_pair, prompted_baseline
+    formatted_disp = torch.nn.functional.interpolate(disp.unsqueeze(1),size=[64,64],mode="bicubic",align_corners=False).squeeze()
+    return image, image_pair, formatted_disp, prompted_baseline
 
 if __name__ == "__main__":
 
     args = parse_args()
     image  = load_512(args.img_path)
-    out_image, image_pair, prompted_baseline = run_inv_sd(image,args)
+    out_image, image_pair, disp, prompted_baseline = run_inv_sd(image, args)
+
     Image.fromarray(image_pair).save(os.path.join('outputs',f'{args.img_path.split("/")[-1].split(".")[0]}_B{prompted_baseline}.png'))
+

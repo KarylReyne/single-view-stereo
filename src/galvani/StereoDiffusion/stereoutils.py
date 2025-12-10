@@ -12,8 +12,9 @@ import sys
 sys.path.append('./StableDiffusion')
 from StableDiffusion.ldm.models.diffusion.ddim import DDIMSampler
 
-def stereo_shift_torch(input_images, depthmaps,sacle_factor=8,shift_both = False,stereo_offset_exponent=1.0):
-    '''input: [B, C, H, W] depthmap: [B, H, W]'''
+
+def stereo_shift_torch(input_images, depthmaps, scale_factor_percent=8, shift_both = False, stereo_offset_exponent=1.0, B=None):
+    '''input: [B, C, H, W] depthmap: [B, H, W] This implements Eq. 3 from the paper. Note that scale_factor_percent (s in the Eq.) is in percent, NOT in [0,1]! stereo_offset_exponent additionally exponentiates D(x,y). B can be used to manually set the baseline distance.'''
 
     def _norm_depth(depth,max_val=1):
         depth_min = depth.min()
@@ -21,34 +22,50 @@ def stereo_shift_torch(input_images, depthmaps,sacle_factor=8,shift_both = False
         if depth_max - depth_min > np.finfo("float").eps:
             out = max_val * (depth - depth_min) / (depth_max - depth_min)
         else:
-            out = np.zeros(depth.shape, dtype=depth.dtype)
+            print(f"depth_max - depth_min ({depth_max - depth_min}) <= np.finfo('float').eps ({np.finfo('float').eps})")
+            out = torch.zeros(depth.shape, dtype=depth.dtype)
         return out
     
-    def _create_stereo(input_images,depthmaps,sacle_factor,stereo_offset_exponent):
+    def _create_stereo(input_images,depthmaps, scale_factor_percent, stereo_offset_exponent):
         b, c, h, w = input_images.shape
         derived_image = torch.zeros_like(input_images)
-        sacle_factor_px = (sacle_factor / 100.0) * input_images.shape[-1]
+        scale_factor_px = (scale_factor_percent / 100.0) * input_images.shape[-1]
         # filled = torch.zeros(b * h * w, dtype=torch.uint8)
         if True:
             for batch in range(b):
                 for row in range(h):
                     # Swipe order should ensure that pixels that are closer overwrite
                     # (at their destination) pixels that are less close
-                    for col in range(w) if sacle_factor_px < 0 else range(w - 1, -1, -1):
-                        col_d = col + int((depthmaps[batch,row,col] ** stereo_offset_exponent) * sacle_factor_px)
+                    for col in range(w) if scale_factor_px < 0 else range(w - 1, -1, -1): # traverse cols backwards if scale is positive (so backwards for x_left and forwards for x_right, see below)
+                        # col_d is the shift in the x dimension
+                        col_d = col + int((depthmaps[batch,row,col] ** stereo_offset_exponent) * scale_factor_px)
                         if 0 <= col_d < w:
                             derived_image[batch,:,row,col_d] = input_images[batch,:,row,col]
                             # filled[batch * h * w + row * w + col_d] = 1        
         return derived_image
+    
+    # get D when given f and B, see Eq. 2 in the paper
+    def _derive_disparity_from_depth(Z, f, B):
+        return torch.nan_to_num((f*B) / Z, nan=0)
+    
+    # get f when given B, assuming Z=D - for testing only!
+    def _derive_f(Z, D, B):
+        # return torch.nan_to_num((Z*D) / B, nan=0)
+        return 1
+
+    if B != None:
+        print(_derive_f(depthmaps, depthmaps, B))
+        depthmaps = _derive_disparity_from_depth(depthmaps, _derive_f(depthmaps, depthmaps, B), B)
     depthmaps = _norm_depth(depthmaps)
+    print(depthmaps)
     
     if shift_both is False:
         left = input_images
         balance = 0
     else:
         balance = 0.5
-        left = _create_stereo(input_images,depthmaps,+1 * sacle_factor * balance,stereo_offset_exponent)
-    right = _create_stereo(input_images,depthmaps,-1 * sacle_factor * (1 - balance),stereo_offset_exponent)
+        left = _create_stereo(input_images, depthmaps, +1*scale_factor_percent*balance, stereo_offset_exponent)
+    right = _create_stereo(input_images, depthmaps, -1*scale_factor_percent*(1-balance), stereo_offset_exponent)
     return torch.concat([left,right],axis=0)
 
 
