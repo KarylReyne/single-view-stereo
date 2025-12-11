@@ -1,0 +1,31 @@
+\mode<presentation>
+%% TimmLiTeX 
+%% Version: v0.9.1
+%% Last modified: 2024-02-16 09:32:26
+
+%% Requirement
+\RequirePackage{tikz}
+\RequirePackage{helvet}
+\RequirePackage{beramono}  % for monospaced font
+\PassOptionsToPackage{scaled=0.95}{beramono}
+
+%% Additional fields
+\def\titlelogo#1{\gdef\@titlelogo{#1}}
+\titlelogo{}
+\def\inserttitlelogo{\@titlelogo}
+
+\def\headlinelogo#1{\gdef\@headlinelogo{#1}}
+\headlinelogo{}
+\def\insertheadlinelogo{\@headlinelogo}
+
+%% Generic macros
+\def\vhrulefill#1{\leavevmode\leaders\hrule\@height#1\hfill \kern\z@}
+
+%% Settings
+\usepackage{../../util/beamerinnerthemeTuebingen}
+\usepackage{../../util/beamerouterthemeTuebingen}
+\usepackage{../../util/beamercolorthemeTuebingen}
+
+\setbeamersize{text margin left=1cm,text margin right=1cm}
+
+\mode<all>
