@@ -302,6 +302,9 @@ def run_inv_sd(image,args):
 
     qpi_config = get_config(path="../QwenPromptInterpreter/cfg/config.json")
     prompted_baseline = interpret_prompt(args.baseline_prompt, qpi_config)
+    if prompted_baseline == 0.0:
+        print(f"baseline can`t be {prompted_baseline}! setting B={1e-8}")
+        prompted_baseline = 1e-8
     print(f"custom baseline set to B={prompted_baseline}")
         
     net_w = net_h = 384

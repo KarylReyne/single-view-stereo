@@ -1,0 +1,61 @@
+% beamer template adapted from https://github.com/timmli/TimmLiTeX
+
+\documentclass[
+  10pt,
+  compress,
+  xcolor={table,dvipsnames},
+  aspectratio=169,
+]{beamer}
+
+\input{../../util/beamer-settings}
+
+% \usetheme{Lustnau}
+\usepackage{../../util/beamerthemeTuebingen}
+\input{../../util/beamerlogosTuebingen.tex}
+
+%==============================
+% Optional packages & settings
+%------------------------------
+
+\definecolor{commentgreen}{rgb}{0.5,0.5,0}
+\renewcommand{\note}[1]{\textcolor{commentgreen}{// #1}\\}% colored c-style comment
+\newcommand{\mathnote}[1]{\textcolor{commentgreen}{\text{// #1}}}% for math env
+\newcommand{\D}{\text{d}}% leibniz notation d for derivatives/integrals
+\renewcommand{\qed}{\hfill \ensuremath{\Box}}% white qed box aligned to the right
+\newcommand{\lp}[1]{\left({#1}\right)}% large parentheses, e.g. for vectors or fractions
+\newcommand{\mono}[1]{\texttt{#1}}% monospace text
+\newcommand{\ceil}[1]{\lceil{#1}\rceil}
+\newcommand{\floor}[1]{\lfloor{#1}\rfloor}
+
+%==============================
+% Title
+%------------------------------
+
+\title{Single View to Stereo Image Synthesis}
+\subtitle{Progress Report 3}
+\author{Tarik Eker, Niklas Munkes, Kaan Yücel, Julian Jurcevic, Ronny Göttler}
+\date{\today}
+
+% \titlegraphic{\includegraphics[scale=0.46]{images/title_img.png}}
+\titlegraphic{}
+
+%==============================
+% Slides
+%------------------------------
+
+\begin{document}
+
+\maketitle
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\input{slides/introduction}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}[plain,allowframebreaks]
+\frametitle{}
+
+\insertBib
+
+\end{frame}
+
+\end{document}

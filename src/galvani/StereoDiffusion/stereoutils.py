@@ -22,7 +22,7 @@ def stereo_shift_torch(input_images, depthmaps, scale_factor_percent=8, shift_bo
         if depth_max - depth_min > np.finfo("float").eps:
             out = max_val * (depth - depth_min) / (depth_max - depth_min)
         else:
-            print(f"depth_max - depth_min ({depth_max - depth_min}) <= np.finfo('float').eps ({np.finfo('float').eps})")
+            print(f"depth_max - depth_min ({depth_max} - {depth_min}) <= np.finfo('float').eps ({np.finfo('float').eps})")
             out = torch.zeros(depth.shape, dtype=depth.dtype)
         return out
     
@@ -46,7 +46,7 @@ def stereo_shift_torch(input_images, depthmaps, scale_factor_percent=8, shift_bo
     
     # get D when given f and B, see Eq. 2 in the paper
     def _derive_disparity_from_depth(Z, f, B):
-        return torch.nan_to_num((f*B) / Z, nan=0)
+        return (f*B) / Z
     
     # get f when given B, assuming Z=D - for testing only!
     def _derive_f(Z, D, B):

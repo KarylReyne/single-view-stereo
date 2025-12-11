@@ -221,3 +221,18 @@ src/galvani/StereoDiffusion/models/qwen2.5_7b_instruct
 
 # output
 src/galvani/StereoDiffusion/outputs/*
+
+# latex
+latex/**/*.aux
+latex/**/*.bbl
+latex/**/*.bcf
+latex/**/*.blg
+latex/**/*.fdb_latexmk
+latex/**/*.fls
+latex/**/*.log
+latex/**/*.nav
+latex/**/*.out
+latex/**/*.xml
+latex/**/*.snm
+latex/**/*.gz
+latex/**/*.toc
