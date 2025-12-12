@@ -212,6 +212,8 @@ __marimo__/
 
 # data
 data/galvani/**
+!data/galvani/image_collection
+!data/galvani/image_collection/**/*
 
 # models
 src/galvani/StereoDiffusion/midas_models/dpt_hybrid-midas-501f0c75.pt
