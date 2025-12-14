@@ -12,8 +12,16 @@ wget -P midas_models "https://github.com/intel-isl/DPT/releases/download/1_0/dpt
 sh download_model.sh
 ```
 #### inference
+ - custom baseline can be set with `--baseline_prompt` (requires focal length in metadata (for now) -> does not work for the primitives dataset!)
+ - whether DPT should estimate disparity or depth can be controlled by passing `--estimate_only_depth` (I think... ;) the option just sets DPTDepthModel.invert = True)
+##### primitives
 ```
-python img2stereo.py --depthmodel_path=midas_models/dpt_hybrid-midas-501f0c75.pt  --img_path="../../../data/galvani/fixed_baselines/000/000_left.png" --baseline_prompt="set B to 6.4"
+python img2stereo.py --depthmodel_path=midas_models/dpt_hybrid-midas-501f0c75.pt --img_path="../../../data/galvani/fixed_baselines/000/000_left.png" --meta_path="../../../data/galvani/fixed_baselines/000/000_meta.json" --output_prefix="outputs/img2stereo/fixed_baselines-000/out" --baseline_prompt="set B to 0.05"
+```
+##### complex objects
+
+```
+python img2stereo.py --depthmodel_path=midas_models/dpt_hybrid-midas-501f0c75.pt  --img_path="../../../data/galvani/image_collection/Dino/Camera_011/left.jpg" --output_prefix="outputs/img2stereo/Dino-Camera_011/out" --baseline_prompt="set B to 0.05"
 ```
 
 

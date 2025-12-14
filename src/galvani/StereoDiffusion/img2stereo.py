@@ -11,7 +11,7 @@ sys.path.append('./StableDiffusion')
 sys.path.append('./DensePredictionTransformer')
 from StableDiffusion.ldm.util import instantiate_from_config
 from DensePredictionTransformer.dpt.models import DPTDepthModel
-from stereoutils import *
+from stereoutils import stereo_shift_torch, norm_depth
 sys.path.append('./PromptToPrompt')
 import ptp_utils 
 from skimage.transform import resize
@@ -30,7 +30,14 @@ from QwenPromptInterpreter.prompt2float import interpret_prompt
 from misc_util import get_config
 
 
-scheduler = DDIMScheduler(beta_start=0.00085, beta_end=0.012, beta_schedule="scaled_linear", clip_sample=False, set_alpha_to_one=False)
+scheduler = DDIMScheduler(
+    beta_start=0.00085, 
+    beta_end=0.012, 
+    beta_schedule="scaled_linear", 
+    clip_sample=False, 
+    set_alpha_to_one=False,
+    steps_offset=0 # steps_offset=0 is depricated
+)
 device = torch.device('cuda:0') if torch.cuda.is_available() else torch.device('cpu')
 GUIDANCE_SCALE = 7.5
 NUM_DDIM_STEPS = 50
@@ -221,12 +228,22 @@ class NullInversion:
         self.context = None
 
 
-
-
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--img_path", type=str, required=True,help="path to image")
-    parser.add_argument("--depthmodel_path",type=str,required=True,help='path of depth model')
+    parser.add_argument("--img_path", type=str, required=True, help="path to image")
+    parser.add_argument("--depthmodel_path",type=str,required=True, help='path of depth model')
+    parser.add_argument("--output_prefix", type=str, required=True, help="prefix for saving the output")
+    parser.add_argument(
+        "--meta_path", 
+        type=str, 
+        help="path to metadata file"
+    )
+    parser.add_argument(
+        "--estimate_only_depth", 
+        action="store_true", 
+        default=False, 
+        help="whether DPT should estimate depth or disparity"
+    )
     parser.add_argument(
         "--deblur",
         action='store_true',
@@ -251,6 +268,7 @@ def parse_args():
     )
     return parser.parse_args()
 
+
 def load_512(image_path, left=0, right=0, top=0, bottom=0):
     if type(image_path) is str:
         image = np.array(Image.open(image_path))[:, :, :3]
@@ -273,18 +291,105 @@ def load_512(image_path, left=0, right=0, top=0, bottom=0):
     image = np.array(Image.fromarray(image).resize((512, 512)))
     return image
 
-def _norm_depth(depth,max_val=1):
-    depth_min = depth.min()
-    depth_max = depth.max()
-    if depth_max - depth_min > torch.finfo(torch.float32).eps:
-        out = max_val * (depth - depth_min) / (depth_max - depth_min)
-    else:
-        out = torch.zeros(depth.shape, dtype=depth.dtype)
-    return out
 
-def run_inv_sd(image,args):
+@torch.no_grad()
+def text2stereoimage_ldm_stable(
+    model,
+    prompt:  List[str],
+    controller,
+    disparity,
+    num_inference_steps: int = 50,
+    guidance_scale: Optional[float] = 7.5,
+    generator: Optional[torch.Generator] = None,
+    latent: Optional[torch.FloatTensor] = None,
+    uncond_embeddings=None,
+    start_time=50,
+    return_type='image',
+    deblur=False
+):
+    # sa = 10
+    # editor = BNAttention(start_step=sa,direction=args.direction)
+    # regiter_attention_editor_diffusers(model, editor)
+
+    batch_size = len(prompt)
+    # ptp_utils.register_attention_control(model, controller)
+    height = width = 512
+    # controller = editor
+    
+    text_input = model.tokenizer(
+        prompt,
+        padding="max_length",
+        max_length=model.tokenizer.model_max_length,
+        truncation=True,
+        return_tensors="pt",
+    )
+    text_embeddings = model.text_encoder(text_input.input_ids.to(model.device))[0]
+    max_length = text_input.input_ids.shape[-1]
+    if uncond_embeddings is None:
+        uncond_input = model.tokenizer(
+            [""] * batch_size, padding="max_length", max_length=max_length, return_tensors="pt"
+        )
+        uncond_embeddings_ = model.text_encoder(uncond_input.input_ids.to(model.device))[0]
+    else:
+        uncond_embeddings_ = None
+
+    latent, latents = ptp_utils.init_latent(latent, model, height, width, generator, batch_size)
+    model.scheduler.set_timesteps(num_inference_steps)
+    for i, t in enumerate(tqdm(model.scheduler.timesteps[-start_time:])):
+        if uncond_embeddings_ is None:
+            context = torch.cat([uncond_embeddings[i].expand(*text_embeddings.shape), text_embeddings])
+        else:
+            context = torch.cat([uncond_embeddings_, text_embeddings])
+        latents = ptp_utils.diffusion_step(model, controller, latents, context, t, guidance_scale, low_resource=False)
+        if i == 10:
+            if isinstance(disparity,torch.Tensor):
+                disparity = torch.nn.functional.interpolate(disparity.unsqueeze(1),size=[64,64],mode="bicubic",align_corners=False,).squeeze(1)
+            elif isinstance(disparity,np.ndarray):
+                disparity = resize(disparity,(64,64))
+            # latents = stereo_shift_torch(latents[:1],disparity,stereo_balance=-1)
+            scale_factor_percent = 8
+            latents_ts = stereo_shift_torch(
+                latents[:1], 
+                disparity, 
+                scale_factor_percent=scale_factor_percent
+            )
+            latents_ts = latents_ts[1:]
+            # latents_np_ = process_pixels_rgba_naive(latents_np[0])
+            # latents_ts =torch.tensor(rearrange(latents_np,'b h w c -> b c h w'),device=device)
+            latents = torch.cat([latents[:1],latents_ts],0)
+            mask = latents_ts[:,0,...] != 0
+            mask = rearrange(mask,'b h w ->b () h w').repeat(1,4,1,1)
+            nosie = torch.randn_like(latents)
+            
+            if deblur: # avoid blurry
+                latents[1:][~mask] = nosie[1:][~mask]
+                latents[1:][mask] = latents_ts[mask]
+
+        if  (i > 10 and i % 10 == 0):
+            latents_ts= stereo_shift_torch(
+                latents[:1], 
+                disparity, 
+                scale_factor_percent=scale_factor_percent
+            )
+            latents_ts = latents_ts[1:]
+            # latents_ts =torch.tensor(rearrange(latents_r_np,'b h w c -> b c h w'),device=device)
+            latents[1:][mask] = latents_ts[mask]
+            # latents[1:][mask] = replacement
+            # import pdb;pdb.set_trace()
+        
+    if return_type == 'image':
+        image = ptp_utils.latent2image(model.vae, latents)
+    else:
+        image = latents
+    return image, latent
+
+
+def run_inv_sd(image, args):
     depthmodel_path = args.depthmodel_path
     deblur = args.deblur
+
+    save_path = "/".join(args.output_prefix.split("/")[:-1])
+    os.makedirs(save_path, exist_ok=True)
 
     device = torch.device("cuda")
     null_inversion = NullInversion(ldm_stable)
@@ -296,114 +401,84 @@ def run_inv_sd(image,args):
     # controller = AttentionStore()
     # image_inv, x_t = run_and_display(prompts, controller, run_baseline=False, latent=x_t, uncond_embeddings=uncond_embeddings, verbose=False)
 
-    print("showing from left to right: the ground truth image, the vq-autoencoder reconstruction, the null-text inverted image")
+    # print("showing from left to right: the ground truth image, the vq-autoencoder reconstruction, the null-text inverted image")
     # ptp_utils.view_images([image_gt, image_enc, image_inv[0]])
     # show_cross_attention(controller, 16, ["up", "down"])
 
-    qpi_config = get_config(path="../QwenPromptInterpreter/cfg/config.json")
-    prompted_baseline = interpret_prompt(args.baseline_prompt, qpi_config)
-    if prompted_baseline == 0.0:
-        print(f"baseline can`t be {prompted_baseline}! setting B={1e-8}")
-        prompted_baseline = 1e-8
-    print(f"custom baseline set to B={prompted_baseline}")
-        
+    # custom baseline distance and focal length
+    DEPTHMAP_FROM_PROMPT = False
+    DEPTHMAP_FROM_SENSOR = True
+    prompted_baseline = None
+    focal_length = None
+
+    # import metadata file
+    if args.meta_path: # for everything NOT called "meta.json"
+        metadata_path = args.meta_path
+    else:
+        metadata_path = args.img_path.split("/")[:-1]
+        metadata_path.append("meta.json")
+        metadata_path = "/".join(metadata_path)
+    metadata = get_config(path=metadata_path)
+
+    # set baseline via prompt
+    # IMPORTANT: requires focal length from sensor
+    # TODO: get focal length from prompt
+    if DEPTHMAP_FROM_PROMPT and args.baseline_prompt:
+        qpi_config = get_config(path="../QwenPromptInterpreter/cfg/config.json")
+        prompted_baseline = interpret_prompt(args.baseline_prompt, qpi_config)
+        if prompted_baseline == 0.0:
+            print(f"[DEPTHMAP_FROM_PROMPT] baseline can`t be {prompted_baseline}! setting B={1e-8}")
+            prompted_baseline = 1e-8
+        focal_length = metadata["focal_mm"]
+
+    # testing depthmap generation from sensor data (blender)
+    if DEPTHMAP_FROM_SENSOR:
+        prompted_baseline = metadata["baseline_m"]
+        focal_length = metadata["focal_mm"]
+
+    if DEPTHMAP_FROM_PROMPT or DEPTHMAP_FROM_SENSOR:
+        print(f"[DEPTHMAP_FROM_{'PROMPT' if DEPTHMAP_FROM_PROMPT else 'SENSOR'}] B = {prompted_baseline}")
+        print(f"[DEPTHMAP_FROM_{'PROMPT' if DEPTHMAP_FROM_PROMPT else 'SENSOR'}] f = {focal_length}")
+
     net_w = net_h = 384
     depthmodel = DPTDepthModel(
         path=depthmodel_path,
         backbone="vitb_rn50_384",
         non_negative=True,
         enable_attention_hooks=False,
+        invert=args.estimate_only_depth
     ).cuda()
-    image_gt_ = torch.tensor(np.expand_dims(image_gt/255,0).transpose(0,3,1,2)/255,device=device,dtype=torch.float32)
+    image_gt_ = torch.tensor(np.expand_dims(image_gt/255,0).transpose(0,3,1,2)/255, device=device, dtype=torch.float32)
     with torch.no_grad():
         prediction = depthmodel.forward(image_gt_)
-    disp = _norm_depth(prediction)
+    if args.estimate_only_depth:
+        assert focal_length != None and prompted_baseline != None
+        depth = prediction
+        disparity = (focal_length*prompted_baseline)/depth
+        depth = norm_depth(depth)
+        disparity = norm_depth(disparity)
+    else:
+        disparity = norm_depth(prediction)
+
+    # print estimated disparity/depth
+    if args.estimate_only_depth:
+        disparity_and_depth = [disparity, depth]
+        for i in range(len(disparity_and_depth)):
+            map = disparity_and_depth[i]
+            map = rearrange(map, 'c h w -> (c h) w')
+            map = map.cpu().numpy()
+            map = np.uint8(map*255)
+            disparity_and_depth[i] = map
+        Image.fromarray(disparity_and_depth[0]).save(f'{args.output_prefix}_B{prompted_baseline}_DPT-depth.png')
+        Image.fromarray(disparity_and_depth[1]).save(f'{args.output_prefix}_B{prompted_baseline}_DPT-depth-to-disparity.png')
+    else:
+        map = disparity
+        map = rearrange(map, 'c h w -> (c h) w')
+        map = map.cpu().numpy()
+        map = np.uint8(map*255)
+        Image.fromarray(map).save(f'{args.output_prefix}_B{prompted_baseline}_DPT-disparity.png')
     del depthmodel
 
-    
-    @torch.no_grad()
-    def text2stereoimage_ldm_stable(
-        model,
-        prompt:  List[str],
-        controller,
-        num_inference_steps: int = 50,
-        guidance_scale: Optional[float] = 7.5,
-        generator: Optional[torch.Generator] = None,
-        latent: Optional[torch.FloatTensor] = None,
-        uncond_embeddings=None,
-        start_time=50,
-        return_type='image',
-        disparity=disp,
-        prompted_baseline=None
-    ):
-
-
-        sa = 10
-        editor = BNAttention(start_step=sa,direction=args.direction)
-        regiter_attention_editor_diffusers(model, editor)
-
-        batch_size = len(prompt)
-        # ptp_utils.register_attention_control(model, controller)
-        height = width = 512
-        # controller = editor
-        
-        text_input = model.tokenizer(
-            prompt,
-            padding="max_length",
-            max_length=model.tokenizer.model_max_length,
-            truncation=True,
-            return_tensors="pt",
-        )
-        text_embeddings = model.text_encoder(text_input.input_ids.to(model.device))[0]
-        max_length = text_input.input_ids.shape[-1]
-        if uncond_embeddings is None:
-            uncond_input = model.tokenizer(
-                [""] * batch_size, padding="max_length", max_length=max_length, return_tensors="pt"
-            )
-            uncond_embeddings_ = model.text_encoder(uncond_input.input_ids.to(model.device))[0]
-        else:
-            uncond_embeddings_ = None
-
-        latent, latents = ptp_utils.init_latent(latent, model, height, width, generator, batch_size)
-        model.scheduler.set_timesteps(num_inference_steps)
-        for i, t in enumerate(tqdm(model.scheduler.timesteps[-start_time:])):
-            if uncond_embeddings_ is None:
-                context = torch.cat([uncond_embeddings[i].expand(*text_embeddings.shape), text_embeddings])
-            else:
-                context = torch.cat([uncond_embeddings_, text_embeddings])
-            latents = ptp_utils.diffusion_step(model, controller, latents, context, t, guidance_scale, low_resource=False)
-            if i == 10:
-                if isinstance(disparity,torch.Tensor):
-                    disparity = torch.nn.functional.interpolate(disparity.unsqueeze(1),size=[64,64],mode="bicubic",align_corners=False,).squeeze(1)
-                elif isinstance(disparity,np.ndarray):
-                    disparity = resize(disparity,(64,64))
-                # latents = stereo_shift_torch(latents[:1],disparity,stereo_balance=-1)
-                scale_factor_percent = 8
-                latents_ts = stereo_shift_torch(latents[:1], disparity, scale_factor_percent=scale_factor_percent, B=prompted_baseline)[1:]
-                # latents_np_ = process_pixels_rgba_naive(latents_np[0])
-                # latents_ts =torch.tensor(rearrange(latents_np,'b h w c -> b c h w'),device=device)
-                latents = torch.cat([latents[:1],latents_ts],0)
-                mask = latents_ts[:,0,...] != 0
-                mask = rearrange(mask,'b h w ->b () h w').repeat(1,4,1,1)
-                nosie = torch.randn_like(latents)
-                
-                if deblur: # aviod blurry
-                    latents[1:][~mask] = nosie[1:][~mask]
-                    latents[1:][mask] = latents_ts[mask]
-
-            if  (i > 10 and i % 10 == 0):
-                latents_ts = stereo_shift_torch(latents[:1], disparity, scale_factor_percent=scale_factor_percent, B=prompted_baseline)[1:]
-                # latents_ts =torch.tensor(rearrange(latents_r_np,'b h w c -> b c h w'),device=device)
-                latents[1:][mask] = latents_ts[mask]
-                # latents[1:][mask] = replacement
-                # import pdb;pdb.set_trace()
-                
-            
-        if return_type == 'image':
-            image = ptp_utils.latent2image(model.vae, latents)
-        else:
-            image = latents
-        return image, latent
     # image, latent = text2stereoimage_ldm_stable(ldm_stable, prompts*2, controller,uncond_embeddings = uncond_embeddings,latent=torch.concat([x_t,x_t],0))
     # image_ = rearrange(image,'b h w c->h (b w) c')
 
@@ -411,22 +486,20 @@ def run_inv_sd(image,args):
     image, latent = text2stereoimage_ldm_stable(
         ldm_stable, 
         prompts*2, 
-        controller, 
+        controller,
+        disparity, 
         uncond_embeddings=uncond_embeddings, 
-        latent=torch.concat([x_t,x_t],0), 
-        disparity=disp,
-        prompted_baseline=prompted_baseline
+        latent=torch.concat([x_t,x_t],0),
+        deblur=deblur
     )
     image_pair = rearrange(image,'b h w c->h (b w) c')
+    Image.fromarray(image_pair).save(f'{args.output_prefix}_B{prompted_baseline}_image_pair.png')
+    return image, image_pair, prompted_baseline
 
-    formatted_disp = torch.nn.functional.interpolate(disp.unsqueeze(1),size=[64,64],mode="bicubic",align_corners=False).squeeze()
-    return image, image_pair, formatted_disp, prompted_baseline
 
 if __name__ == "__main__":
 
     args = parse_args()
     image  = load_512(args.img_path)
-    out_image, image_pair, disp, prompted_baseline = run_inv_sd(image, args)
-
-    Image.fromarray(image_pair).save(os.path.join('outputs',f'{args.img_path.split("/")[-1].split(".")[0]}_B{prompted_baseline}.png'))
+    out_image, image_pair, prompted_baseline = run_inv_sd(image, args)
 

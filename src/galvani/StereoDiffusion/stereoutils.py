@@ -13,20 +13,21 @@ sys.path.append('./StableDiffusion')
 from StableDiffusion.ldm.models.diffusion.ddim import DDIMSampler
 
 
-def stereo_shift_torch(input_images, depthmaps, scale_factor_percent=8, shift_both = False, stereo_offset_exponent=1.0, B=None):
-    '''input: [B, C, H, W] depthmap: [B, H, W] This implements Eq. 3 from the paper. Note that scale_factor_percent (s in the Eq.) is in percent, NOT in [0,1]! stereo_offset_exponent additionally exponentiates D(x,y). B can be used to manually set the baseline distance.'''
+def norm_depth(depth, max_val=1):
+    depth_min = depth.min()
+    depth_max = depth.max()
+    if depth_max - depth_min > np.finfo("float").eps:
+        out = max_val * (depth - depth_min) / (depth_max - depth_min)
+    else:
+        print(f"[stereoutils._norm_depth()]  depth_max - depth_min ({depth_max} - {depth_min}) <= np.finfo('float').eps ({np.finfo('float').eps})")
+        out = torch.zeros(depth.shape, dtype=depth.dtype)
+    return out
 
-    def _norm_depth(depth,max_val=1):
-        depth_min = depth.min()
-        depth_max = depth.max()
-        if depth_max - depth_min > np.finfo("float").eps:
-            out = max_val * (depth - depth_min) / (depth_max - depth_min)
-        else:
-            print(f"depth_max - depth_min ({depth_max} - {depth_min}) <= np.finfo('float').eps ({np.finfo('float').eps})")
-            out = torch.zeros(depth.shape, dtype=depth.dtype)
-        return out
+
+def stereo_shift_torch(input_images, depthmaps, scale_factor_percent=8, shift_both = False, stereo_offset_exponent=1.0):
+    '''input: [B, C, H, W] depthmaps: [B, H, W] This implements Eq. 3 from the paper. Note that scale_factor_percent (s in the Eq.) is in percent, NOT in [0,1]! stereo_offset_exponent additionally exponentiates D(x,y).'''
     
-    def _create_stereo(input_images,depthmaps, scale_factor_percent, stereo_offset_exponent):
+    def _create_stereo(input_images, depthmaps, scale_factor_percent, stereo_offset_exponent):
         b, c, h, w = input_images.shape
         derived_image = torch.zeros_like(input_images)
         scale_factor_px = (scale_factor_percent / 100.0) * input_images.shape[-1]
@@ -44,20 +45,7 @@ def stereo_shift_torch(input_images, depthmaps, scale_factor_percent=8, shift_bo
                             # filled[batch * h * w + row * w + col_d] = 1        
         return derived_image
     
-    # get D when given f and B, see Eq. 2 in the paper
-    def _derive_disparity_from_depth(Z, f, B):
-        return (f*B) / Z
-    
-    # get f when given B, assuming Z=D - for testing only!
-    def _derive_f(Z, D, B):
-        # return torch.nan_to_num((Z*D) / B, nan=0)
-        return 1
-
-    if B != None:
-        print(_derive_f(depthmaps, depthmaps, B))
-        depthmaps = _derive_disparity_from_depth(depthmaps, _derive_f(depthmaps, depthmaps, B), B)
-    depthmaps = _norm_depth(depthmaps)
-    print(depthmaps)
+    depthmaps = norm_depth(depthmaps)
     
     if shift_both is False:
         left = input_images
