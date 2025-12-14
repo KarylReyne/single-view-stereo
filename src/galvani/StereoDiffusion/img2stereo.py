@@ -408,6 +408,9 @@ def run_inv_sd(image, args):
     # custom baseline distance and focal length
     DEPTHMAP_FROM_PROMPT = False
     DEPTHMAP_FROM_SENSOR = True
+    if args.baseline_prompt:
+        DEPTHMAP_FROM_PROMPT = True
+        DEPTHMAP_FROM_SENSOR = False
     prompted_baseline = None
     focal_length = None
 
