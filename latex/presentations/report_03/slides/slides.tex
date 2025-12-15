@@ -30,29 +30,58 @@
     \end{figure}
 \end{frame}
 
-\begin{frame}{StereoDiffusion: General Characteristics}
-    \begin{itemize}
-        \item Training-free: utilizes pretrained DPT \cite{ranftl2021visiontransformersdenseprediction} and StableDiffusion \cite{rombach2022highresolutionimagesynthesislatent} without fine-tuning
-        \item TODO
-    \end{itemize}
-\end{frame}
+% \begin{frame}{StereoDiffusion: General Characteristics}
+%     \begin{itemize}
+%         \item Training-free: utilizes pretrained DPT \cite{ranftl2021visiontransformersdenseprediction} and StableDiffusion \cite{rombach2022highresolutionimagesynthesislatent} without fine-tuning
+%         \item TODO
+%     \end{itemize}
+% \end{frame}
 
 \begin{frame}{StereoDiffusion: Stereo Pixels Shift}
-    \textbf{Theirs}\\
-    TODO\\
-    \bigskip
-    \textbf{Ours}\\
-    TODO
+    The Stereo Pixels Shift operation is used to determine how much a pixel in the left image $x_{left}$ has to be shifted in the latent space to obtain the latent representation of the right image. It is calculated as follows:\\
+    \begin{align}
+        x_{right}(x,y)=x_{left}\lp{x-sD_{DPT}(x,y),y}
+    \end{align}
+    where $D_{DPT}$ is the disparity map estimated by DPT and $s$ is a uniform scaling factor (see also \cite{Wang-2024-stereodiffusion}).
+\end{frame}
+
+\begin{frame}{StereoDiffusion: Stereo Pixels Shift With Sensor Data}
+    We modify the Stereo Pixels Shift operation like so: 
+    \begin{align}
+        x_{right}(x,y)=x_{left}\lp{x-sD(x,y),y}\text{ with }D(x,y)=\frac{fB}{Z_{DPT}(x,y)}
+    \end{align}
+    where $Z_{DPT}$ is a depth map estimated by DPT and $f$ and $B$ are the focal length and baseline distance respectively.\\ 
+    $f$ and $B$ are provided as additional input to the model, either by using the sensor data (Blender) from our dataset or by extracting them from a given prompt using \mono{Qwen2.5-7B-Instruct} \cite{an2024qwen2}.
 \end{frame}
 
 \begin{frame}{Qualitative Analysis: Input and Gold Output}
-    TODO
+    \begin{columns}
+        \begin{column}{0.5\textwidth}
+            \begin{figure}[t]
+                \includegraphics[width=.75\textwidth]{images/Dino-Camera_011/left.jpg}
+                \caption{Left stereo image}
+            \end{figure}
+        \end{column}
+        \begin{column}{0.5\textwidth}
+            \begin{figure}[t]
+                \includegraphics[width=.75\textwidth]{images/Dino-Camera_011/right.jpg}
+                \caption{Right stereo image}
+            \end{figure}
+        \end{column}
+    \end{columns}
 \end{frame}
 
 \begin{frame}{Qualitative Analysis: Their Result}
     \begin{figure}[t]
         \includegraphics[width=.8\textwidth]{images/img2stereo/Dino-Camera_011/est_disp_B0.12_image_pair.png}
         \caption{Stereo images generated with StereoDiffusion + disparity map from DPT}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Qualitative Analysis: $D_{DPT}$}
+    \begin{figure}[t]
+        \includegraphics[width=.4\textwidth]{images/img2stereo/Dino-Camera_011/est_disp_B0.12_DPT-disparity.png}
+        \caption{The disparity map $D_{DPT}$ estimated by DPT}
     \end{figure}
 \end{frame}
 
@@ -63,12 +92,42 @@
     \end{figure}
 \end{frame}
 
+\begin{frame}{Qualitative Analysis: $Z_{DPT}$ and $D$}
+    \begin{columns}
+        \begin{column}{0.48\textwidth}
+            \begin{figure}[t]
+                \includegraphics[width=.75\textwidth]{images/img2stereo/Dino-Camera_011/est_depth_B0.12_DPT-depth.png}
+                \caption{The depth map $Z_{DPT}$ estimated by DPT}
+            \end{figure}
+        \end{column}
+        \begin{column}{0.48\textwidth}
+            \begin{figure}[t]
+                \includegraphics[width=.75\textwidth]{images/img2stereo/Dino-Camera_011/est_depth_B0.12_DPT-depth-to-disparity.png}
+                \caption{The disparity map $D$ calculated with sensor data based on $Z_{DPT}$}
+            \end{figure}
+        \end{column}
+    \end{columns}
+\end{frame}
+
 \begin{frame}{Qualitative Analysis: Our Result with Modified Baseline Distance}
-    TODO
+    \begin{figure}[t]
+        \includegraphics[width=.73\textwidth]{images/img2stereo/Dino-Camera_011/est_depth_B0.24_image_pair.png}
+        \caption{Stereo images generated with StereoDiffusion + depth map from DPT + prompted baseline + $f$ from sensor data}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Qualitative Analysis: Our Result with Negative Baseline Distance}
+    \begin{figure}[t]
+        \includegraphics[width=.73\textwidth]{images/img2stereo/Dino-Camera_011/est_depth_B-0.24_image_pair.png}
+        \caption{Stereo images generated with StereoDiffusion + depth map from DPT + prompted negative baseline + $f$ from sensor data}
+    \end{figure}
 \end{frame}
 
 \begin{frame}{Qualitative Analysis: Their Result Deblurred}
-    TODO
+    \begin{figure}[t]
+        \includegraphics[width=.73\textwidth]{images/img2stereo/Dino-Camera_011/est_disp_deblur_B0.12_image_pair.png}
+        \caption{Stereo images generated with StereoDiffusion + disparity map from DPT. The image is additionally deblurred using the algorithm provided with the StereoDiffusion source code.}
+    \end{figure}
 \end{frame}
 
 \begin{frame}{Possible Improvements}
