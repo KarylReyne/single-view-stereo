@@ -42,7 +42,7 @@
     \begin{align}
         x_{right}(x,y)=x_{left}\lp{x-sD_{DPT}(x,y),y}
     \end{align}
-    where $D_{DPT}$ is the disparity map estimated by DPT and $s$ is a uniform scaling factor (see also \cite{Wang-2024-stereodiffusion}).
+    where $D_{DPT}$ is the disparity map estimated by DPT \cite{ranftl2021visiontransformersdenseprediction} and $s$ is a uniform scaling factor (see also \cite{Wang-2024-stereodiffusion}).
 \end{frame}
 
 \begin{frame}{StereoDiffusion: Stereo Pixels Shift With Sensor Data}
@@ -130,10 +130,74 @@
     \end{figure}
 \end{frame}
 
-\begin{frame}{Possible Improvements}
+% \begin{frame}{Possible Improvements}
+%     \begin{itemize}
+%         \item switch to a better/state-of-the-art monocular depth estimation model (see for example \cite{zhang2025surveymonocularmetricdepth,sun2025depthcondition})
+%         \item TODO
+%     \end{itemize}
+% \end{frame}
+
+\begin{frame}{Evaluation}
+    \textbf{Goal:} Evaluate the \textbf{quality} of our generated views by comparing them to ground truth images\\
+    \bigskip
+    \textbf{Metrics:}
     \begin{itemize}
-        \item switch to a better/state-of-the-art monocular depth estimation model (see for example \cite{zhang2025surveymonocularmetricdepth,sun2025depthcondition})
-        \item TODO
+        \item \textbf{PSNR}(Peak Signal-to-Noise Ratio): \textbf{pixel-wise} and measure absolute intensity differences
+        \item \textbf{SSIM}(Structural Similarity Index): compares contrast and structure, so checks if the \textbf{shapes and edges are consistent}
+        \item \textbf{LPIPS}(Learned Perceptual Image Patch Similarity): Both images through pretrained neural network and evaluates perceptual similarity and \textbf{visual realism}
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Related Work}
+    \vspace{3mm}
+    \begin{columns}
+        \begin{column}{0.5\textwidth}
+            \textbf{STNeRF (2024) -- Symmetry-Aware Triplane NeRF \cite{Liu-2025-stnerf}:}\\
+            Enforces left–right symmetry (mainly for vehicles)\\
+            \vspace{2mm}
+            Pros:
+            \begin{itemize}
+                \item Very stable geometry
+                \item Fewer artifacts
+            \end{itemize}
+            Cons:
+            \begin{itemize}
+                \item Domain-specific (vehicles only)
+                \item Less general than our approach
+            \end{itemize}
+        \end{column}
+        \begin{column}{0.5\textwidth}
+            \textbf{NerfDiff (2023) -- Diffusion-to-NeRF Distillation \cite{gu2023nerfdiff}:}\\
+            Distills a diffusion model into a NeRF representation \& generates consistent novel views from one image\\
+            \vspace{2mm}
+            Pros:
+            \begin{itemize}
+                \item Smoother views
+                \item better view consistency 
+            \end{itemize}
+            Cons:
+            \begin{itemize}
+                \item High computational cost
+                \item Limited geometric interpretability
+            \end{itemize}
+        \end{column}
+    \end{columns}
+    \begin{center}
+        \textbf{Recent work improves visual quality using NeRF and diffusion priors, while our approach focuses on explicit geometry and stereo consistency}
+    \end{center}
+\end{frame}
+
+\begin{frame}{Possible Improvement}
+    Current approach uses SPSMD to handle occlusions while keeping the method training free\\
+    \bigskip
+    \textbf{Using Inpainting Model:}\\
+    Are pretrained on large image datasets where random regions are masked and reconstructed.\\
+    \bigskip
+    Pros:
+    \begin{itemize}
+        \item Cleaner filling of large occluded regions
+        \item Fewer artifacts
+        \item Improved background texture quality
     \end{itemize}
 \end{frame}
 
