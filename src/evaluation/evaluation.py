@@ -4,15 +4,15 @@ from evaluation.perceptual.perceptual import PerceptualEvaluator
 import json
 
 class StereoEvaluator:
-  def __init__(self, gt_left_path, gt_right_path, gen_right_path, meta_path, batch_path=None):
+  def __init__(self, gt_left_path, gt_right_path, gen_right_path, meta_path, perceptual_evaluator, geometric_evaluator, batch_path=None):
     self.gt_left_path = gt_left_path
     self.gt_right_path = gt_right_path
     self.gen_right_path = gen_right_path
     self.meta_path = meta_path
     self.batch_path = batch_path
 
-    self.perceptual_evaluator = PerceptualEvaluator()
-    self.geometric_evaluator = GeometricEvaluator()
+    self.perceptual_evaluator = perceptual_evaluator
+    self.geometric_evaluator = geometric_evaluator
 
     self.perceptual_results = {}
     self.geometric_results = {}
@@ -54,10 +54,12 @@ class StereoEvaluator:
     gt_left, gt_right, gen_right = self._load_images()
     baseline = self.meta["baseline"]
 
+    # perceptual
     self.perceptual_results["psnr"] = self.perceptual_evaluator.psnr_metric(gt_right, gen_right)
     self.perceptual_results["ssim"] = self.perceptual_evaluator.ssim_metric(gt_right, gen_right)
     self.perceptual_results["lpips"] = self.perceptual_evaluator.lpips_metric(gt_right, gen_right)
 
+    # geometric 
     # normalized optical flow error
     flow_gt = self.geometric_evaluator.flow_metric(gt_left, gt_right)
     flow_gen = self.geometric_evaluator.flow_metric(gt_left, gen_right)
@@ -70,3 +72,5 @@ class StereoEvaluator:
 
     baseline = self.meta["baseline"]
     self.geometric_results["disp_epe"] = self.geometric_evaluator.disparity_error(disp_gt, disp_gen, baseline)
+
+    self.geometric_results["bad_pixel_rate"] = self.geometric_evaluator.bad_pixel_rate(disp_gt, disp_gen)
