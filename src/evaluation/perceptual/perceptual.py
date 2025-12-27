@@ -11,7 +11,7 @@ class PerceptualEvaluator:
     self.lpips_model = lpips.LPIPS(net='vgg').to(self.device)
     
   # Peak signal-to-noise ratio
-  def compute_psnr(self, img1, img2):
+  def psnr_metric(self, img1, img2):
     mse = np.mean((img1 - img2) ** 2)
     if mse == 0:
         return float("inf")
@@ -19,7 +19,7 @@ class PerceptualEvaluator:
     return 20 * math.log10(PIXEL_MAX / math.sqrt(mse))
 
   # Structural similarity index measure
-  def compute_ssim(self, img1, img2):
+  def ssim_metric(self, img1, img2):
     return ssim(img1, img2, data_range=255, channel_axis=-1)
   
   # Learned Perceptual Image Patch Similarity
@@ -28,8 +28,8 @@ class PerceptualEvaluator:
     img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2RGB)
     img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2RGB)
 
-    t1 = torch.tensor(img1).permute(2, 0, 1).unsqueeze(0) / 255.0
-    t2 = torch.tensor(img2).permute(2, 0, 1).unsqueeze(0) / 255.0
+    t1 = torch.from_numpy(img1).float().permute(2, 0, 1).unsqueeze(0) / 255.0
+    t2 = torch.from_numpy(img2).float().permute(2, 0, 1).unsqueeze(0) / 255.0
     
     # normalise to [-1,1]
     t1 = t1 * 2 - 1  
