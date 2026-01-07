@@ -1,4 +1,5 @@
 import torch
+from torch import nn
 import sys
 import json
 from diffusers import StableDiffusionPipeline
@@ -19,21 +20,6 @@ def get_config(path='cfg/config.json'):
     return config
 
 
-class VAEEncoder(torch.nn.Module):
-    def __init__(self, in_channels, latent_dim):
-        super(VAEEncoder, self).__init__()
-        self.encoder = torch.nn.Sequential(
-            torch.nn.Conv2d(in_channels, 64, kernel_size=4, stride=2, padding=1),
-            torch.nn.ReLU(),
-            torch.nn.Conv2d(64, 128, kernel_size=4, stride=2, padding=1),
-            torch.nn.ReLU(),
-            torch.nn.Conv2d(128, latent_dim, kernel_size=4, stride=2, padding=1),
-        )
-
-    def forward(self, x):
-        return self.encoder(x)
-
-
 def main(training_config, dataset_config):
     pipeline = StableDiffusionPipeline.from_pretrained(
         training_config["model_path"],
@@ -46,7 +32,11 @@ def main(training_config, dataset_config):
     dataset = TrainDataset(dataset_config, return_only_images=True, shuffle=True)
     dataloader = DataLoader(dataset, batch_size=training_config["batch_size"])
 
+    # TODO: TEST - replace unet
+    # pipeline.unet = UNet
+
     print(pipeline)
+    exit()
 
     pipeline.unet.train()
     if training_config["compile_pipeline"]:

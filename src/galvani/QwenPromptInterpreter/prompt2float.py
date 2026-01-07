@@ -23,8 +23,9 @@ def interpret_prompt(prompt, config):
     model, tokenizer = setup_models(config)
 
     instruction = lambda p: f"""
-        You are given a query that specifies a baseline distance B as a floating-point number. Please return B in the following format:
+        You are given a query that specifies a baseline distance B as a floating-point number and a focal length f as a floating-point number. Please return B and f in the following format:
         <begin_baseline>B<end_baseline>
+        <begin_focal-length>f<end_focal-length>
         Remember that your answer has to be in the exact format specified above. Don't output anything else.
         Here is the query:
         <begin_query>{p}<end_query>
@@ -54,12 +55,15 @@ def interpret_prompt(prompt, config):
     )[0]
 
     B = None
+    f = None
     try:
         B = float(generated_response.split("<begin_baseline>")[-1].split("<end_baseline>")[0])
+        f = float(generated_response.split("<begin_focal-length>")[-1].split("<end_focal-length>")[0])
     except Exception as e:
         raise e
     assert B != None
+    assert f != None
 
     # TODO: maybe add batched self-consistency, just for fun?
     
-    return B
+    return B, f

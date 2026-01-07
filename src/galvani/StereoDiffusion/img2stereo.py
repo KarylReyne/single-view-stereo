@@ -425,14 +425,12 @@ def run_inv_sd(image, args):
 
     # set baseline via prompt
     # IMPORTANT: requires focal length from sensor
-    # TODO: get focal length from prompt
     if DEPTHMAP_FROM_PROMPT and args.baseline_prompt:
         qpi_config = get_config(path="../QwenPromptInterpreter/cfg/config.json")
-        prompted_baseline = interpret_prompt(args.baseline_prompt, qpi_config)
+        prompted_baseline, focal_length = interpret_prompt(args.baseline_prompt, qpi_config)
         if prompted_baseline == 0.0:
             print(f"[DEPTHMAP_FROM_PROMPT] baseline can`t be {prompted_baseline}! setting B={1e-8}")
             prompted_baseline = 1e-8
-        focal_length = metadata["focal_mm"]
 
     # testing depthmap generation from sensor data (blender)
     if DEPTHMAP_FROM_SENSOR:
