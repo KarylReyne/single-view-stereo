@@ -1,3 +1,4 @@
+## StereoDiffusion inference
 ### setup
 ```
 conda activate stereoview
@@ -45,4 +46,55 @@ wget -P models "https://www.modelscope.cn/models/stabilityai/stable-diffusion-2-
 #### inference
 ```
 python depth2stereoimg.py --ckpt=models/512-depth-ema.ckpt --prompt="a cube intersected by a torus" --init_img="../../../data/galvani/fixed_baselines/000/000_left.png" --depthmodel_path=midas_models/dpt_hybrid-midas-501f0c75.pt --config=StableDiffusion/configs/stable-diffusion/v2-midas-inference.yaml
+```
+
+
+## zero123 training
+### for galvani only
+```
+srun --job-name "train01" --partition=a100-galvani --ntasks=1 --nodes=1 --gres=gpu:4 --time 1:00:00 --pty bash
+```
+### setup
+<!-- NOTE THAT A DIFFERENT ENVIRONMENT IS USED HERE !!! -->
+```
+conda activate stereoview-train 
+cd src/galvani/zero_123/zero123
+```
+### download/extract
+```
+wget -P models "https://cv.cs.columbia.edu/zero123/assets/sd-image-conditioned-v2.ckpt"
+unzip ./valid_paths.json.zip -d ./view_release
+```
+### additional dependencies
+```
+git clone https://github.com/CompVis/taming-transformers.git
+pip install -e taming-transformers/
+git clone https://github.com/openai/CLIP.git
+pip install -e CLIP/
+```
+### train
+```
+python main.py \
+    -t \
+    --base configs/sd-objaverse-finetune-c_concat-256.yaml \
+    --gpus 0,1,2,3 \
+    --scale_lr False \
+    --num_nodes 1 \
+    --seed 42 \
+    --check_val_every_n_epoch 10 \
+    --finetune_from models/sd-image-conditioned-v2.ckpt
+```
+
+
+## stable diffusion finetuning
+<!-- based on https://medium.com/@heyamit10/fine-tuning-stable-diffusion-xl-a-practical-guide-a4b3e579ce9a -->
+### setup
+<!-- NOTE THAT A DIFFERENT ENVIRONMENT IS USED HERE !!! -->
+```
+conda activate stereoview-finetuning
+cd src/galvani/StableDiffusionFinetuning
+```
+### finetune
+```
+python main.py
 ```

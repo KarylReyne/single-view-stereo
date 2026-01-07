@@ -1,0 +1,21 @@
+name: stereoview-finetuning
+channels:
+  - defaults
+  - nvidia
+  - pytorch
+  - conda-forge
+dependencies:
+  - python=3.10
+  - pip
+  - numpy
+  - nvidia::cudatoolkit
+  - pytorch::pytorch
+  - pip:
+    - diffusers
+    - accelerate
+    - transformers
+    - tokenizers
+    - datasets
+    - torchvision
+    - tqdm
+    - ijson

@@ -1,0 +1,5 @@
+{
+    "loose_dataset_path": "../../../data/galvani/image_collection",
+    "processed_dataset_path": "../../../data/galvani/image_collection_processed.jsonl",
+    "final_img_size": [512, 512]
+}
