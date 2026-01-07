@@ -1,20 +1,23 @@
 import cv2
 from evaluation.geometric.geometric import GeometricEvaluator
 from evaluation.perceptual.perceptual import PerceptualEvaluator
+import json
 
 class StereoEvaluator:
-  def __init__(self, gt_left_path, gt_right_path, gen_right_path, batch_path=None):
+  def __init__(self, gt_left_path, gt_right_path, gen_right_path, meta_path, perceptual_evaluator, geometric_evaluator, batch_path=None):
     self.gt_left_path = gt_left_path
     self.gt_right_path = gt_right_path
     self.gen_right_path = gen_right_path
-
+    self.meta_path = meta_path
     self.batch_path = batch_path
 
-    self.perceptual_evaluator = PerceptualEvaluator()
-    self.geometric_evaluator = GeometricEvaluator()
+    self.perceptual_evaluator = perceptual_evaluator
+    self.geometric_evaluator = geometric_evaluator
 
     self.perceptual_results = {}
     self.geometric_results = {}
+
+    self.meta = self._load_meta()
 
 
   def _load_images(self):
@@ -37,29 +40,37 @@ class StereoEvaluator:
     
     return gt_left, gt_right, gen_right
 
+
+  def _load_meta(self):
+    with open(self.meta_path, "r") as f:
+        meta = json.load(f)
+    return {
+        "baseline": meta["baseline_m"],
+        "fov": meta["fov_deg"],
+    }
+
+
   def evaluate(self):
     gt_left, gt_right, gen_right = self._load_images()
+    baseline = self.meta["baseline"]
 
-    self.perceptual_results["psnr"] = self.perceptual_evaluator.compute_psnr(gt_right, gen_right)
-    self.perceptual_results["ssim"] = self.perceptual_evaluator.compute_ssim(gt_right, gen_right)
+    # perceptual
+    self.perceptual_results["psnr"] = self.perceptual_evaluator.psnr_metric(gt_right, gen_right)
+    self.perceptual_results["ssim"] = self.perceptual_evaluator.ssim_metric(gt_right, gen_right)
     self.perceptual_results["lpips"] = self.perceptual_evaluator.lpips_metric(gt_right, gen_right)
 
-    flow_gt = self.geometric_evaluator.compute_flow(gt_left, gt_right)
-    flow_gen = self.geometric_evaluator.compute_flow(gt_left, gen_right)
+    # geometric 
+    # normalized optical flow error
+    flow_gt = self.geometric_evaluator.flow_metric(gt_left, gt_right)
+    flow_gen = self.geometric_evaluator.flow_metric(gt_left, gen_right)
 
-    self.geometric_results["flow_epe"] = self.geometric_evaluator.flow_epe(flow_gt, flow_gen)
+    self.geometric_results["optical_flow_error"] = self.geometric_evaluator.flow_error(flow_gt, flow_gen, baseline)
 
+    # normalized disparity error
+    disp_gt  = self.geometric_evaluator.compute_disparity(gt_left, gt_right)
+    disp_gen = self.geometric_evaluator.compute_disparity(gt_left, gen_right)
 
+    baseline = self.meta["baseline"]
+    self.geometric_results["disp_epe"] = self.geometric_evaluator.disparity_error(disp_gt, disp_gen, baseline)
 
-if __name__ == "__main__":
-  evaluator = StereoEvaluator(
-      gt_left_path="evaluation/000_left.png",
-      gt_right_path="evaluation/000_right.png",
-      gen_right_path="evaluation/000_gen.png",
-  )
-   
-  evaluator.evaluate()
-  results = evaluator.perceptual_results|evaluator.geometric_results
-  
-  for metric_name, value in results.items():
-        print(f"  {metric_name}: {value}")
+    self.geometric_results["bad_pixel_rate"] = self.geometric_evaluator.bad_pixel_rate(disp_gt, disp_gen)
