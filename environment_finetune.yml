@@ -19,3 +19,4 @@ dependencies:
     - torchvision
     - tqdm
     - ijson
+    - matplotlib

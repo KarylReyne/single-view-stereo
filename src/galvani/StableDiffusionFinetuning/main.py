@@ -32,11 +32,7 @@ def main(training_config, dataset_config):
     dataset = TrainDataset(dataset_config, return_only_images=True, shuffle=True)
     dataloader = DataLoader(dataset, batch_size=training_config["batch_size"])
 
-    # TODO: TEST - replace unet
-    # pipeline.unet = UNet
-
     print(pipeline)
-    exit()
 
     pipeline.unet.train()
     if training_config["compile_pipeline"]:
@@ -50,6 +46,7 @@ def main(training_config, dataset_config):
 
         for batch in tqdm(dataloader):
             images = batch[0].to(training_config["device"])
+            print(images.shape)
             noise = torch.randn_like(images).to(training_config["device"])
 
             outputs = pipeline.unet(images, noise)
