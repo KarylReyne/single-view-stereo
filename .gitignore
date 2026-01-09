@@ -1,6 +1,10 @@
 # byte-compiled
 __pycache__/
 
+# venv
+*.egg-info
+stereoview-venv
+
 # data
 data/galvani/**
 !data/galvani/image_collection

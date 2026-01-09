@@ -30,25 +30,6 @@ from QwenPromptInterpreter.prompt2float import interpret_prompt
 from misc_util import get_config
 
 
-scheduler = DDIMScheduler(
-    beta_start=0.00085, 
-    beta_end=0.012, 
-    beta_schedule="scaled_linear", 
-    clip_sample=False, 
-    set_alpha_to_one=False,
-    steps_offset=0 # steps_offset=0 is depricated
-)
-device = torch.device('cuda:0') if torch.cuda.is_available() else torch.device('cpu')
-GUIDANCE_SCALE = 7.5
-NUM_DDIM_STEPS = 50
-ldm_stable = StableDiffusionPipeline.from_pretrained("CompVis/stable-diffusion-v1-4", scheduler=scheduler).to(device)
-try:
-    ldm_stable.disable_xformers_memory_efficient_attention()
-except AttributeError:
-    print("Attribute disable_xformers_memory_efficient_attention() is missing")
-tokenizer = ldm_stable.tokenizer
-
-
 class EmptyControl:
     def step_callback(self, x_t):
         return x_t
@@ -414,15 +395,6 @@ def run_inv_sd(image, args):
     prompted_baseline = None
     focal_length = None
 
-    # import metadata file
-    if args.meta_path: # for everything NOT called "meta.json"
-        metadata_path = args.meta_path
-    else:
-        metadata_path = args.img_path.split("/")[:-1]
-        metadata_path.append("meta.json")
-        metadata_path = "/".join(metadata_path)
-    metadata = get_config(path=metadata_path)
-
     # set baseline via prompt
     # IMPORTANT: requires focal length from sensor
     if DEPTHMAP_FROM_PROMPT and args.baseline_prompt:
@@ -434,6 +406,14 @@ def run_inv_sd(image, args):
 
     # testing depthmap generation from sensor data (blender)
     if DEPTHMAP_FROM_SENSOR:
+        # import metadata file
+        if args.meta_path: # for everything NOT called "meta.json"
+            metadata_path = args.meta_path
+        else:
+            metadata_path = args.img_path.split("/")[:-1]
+            metadata_path.append("meta.json")
+            metadata_path = "/".join(metadata_path)
+        metadata = get_config(path=metadata_path)
         prompted_baseline = metadata["baseline_m"]
         focal_length = metadata["focal_mm"]
 
@@ -452,6 +432,8 @@ def run_inv_sd(image, args):
     image_gt_ = torch.tensor(np.expand_dims(image_gt/255,0).transpose(0,3,1,2)/255, device=device, dtype=torch.float32)
     with torch.no_grad():
         prediction = depthmodel.forward(image_gt_)
+    
+    # estimate disparity/depth
     if args.estimate_only_depth:
         assert focal_length != None and prompted_baseline != None
         depth = prediction
@@ -470,14 +452,14 @@ def run_inv_sd(image, args):
             map = map.cpu().numpy()
             map = np.uint8(map*255)
             disparity_and_depth[i] = map
-        Image.fromarray(disparity_and_depth[0]).save(f'{args.output_prefix}_B{prompted_baseline}_DPT-depth.png')
-        Image.fromarray(disparity_and_depth[1]).save(f'{args.output_prefix}_B{prompted_baseline}_DPT-depth-to-disparity.png')
+        Image.fromarray(disparity_and_depth[0]).save(f'{args.output_prefix}_DPT-depth.png')
+        Image.fromarray(disparity_and_depth[1]).save(f'{args.output_prefix}_DPT-depth-to-disparity_B{prompted_baseline}_f{focal_length}.png')
     else:
         map = disparity
         map = rearrange(map, 'c h w -> (c h) w')
         map = map.cpu().numpy()
         map = np.uint8(map*255)
-        Image.fromarray(map).save(f'{args.output_prefix}_B{prompted_baseline}_DPT-disparity.png')
+        Image.fromarray(map).save(f'{args.output_prefix}_DPT-disparity.png')
     del depthmodel
 
     # image, latent = text2stereoimage_ldm_stable(ldm_stable, prompts*2, controller,uncond_embeddings = uncond_embeddings,latent=torch.concat([x_t,x_t],0))
@@ -494,13 +476,37 @@ def run_inv_sd(image, args):
         deblur=deblur
     )
     image_pair = rearrange(image,'b h w c->h (b w) c')
-    Image.fromarray(image_pair).save(f'{args.output_prefix}_B{prompted_baseline}_image_pair.png')
+    if args.estimate_only_depth:
+        Image.fromarray(image_pair).save(f'{args.output_prefix}_DPT-depth-to-disparity_B{prompted_baseline}_f{focal_length}_image_pair.png')
+    else:
+        Image.fromarray(image_pair).save(f'{args.output_prefix}_DPT-disparity_image_pair.png')
     return image, image_pair, prompted_baseline
 
 
 if __name__ == "__main__":
-
     args = parse_args()
+
+    scheduler = DDIMScheduler(
+        beta_start=0.00085, 
+        beta_end=0.012, 
+        beta_schedule="scaled_linear", 
+        clip_sample=False, 
+        set_alpha_to_one=False,
+        steps_offset=1
+    )
+    device = "cuda:0"
+    GUIDANCE_SCALE = 7.5
+    NUM_DDIM_STEPS = 50
+    ldm_stable = StableDiffusionPipeline.from_pretrained(
+        "CompVis/stable-diffusion-v1-4", 
+        scheduler=scheduler
+    ).to(device)
+    try:
+        ldm_stable.disable_xformers_memory_efficient_attention()
+    except AttributeError:
+        print("Attribute disable_xformers_memory_efficient_attention() is missing")
+    tokenizer = ldm_stable.tokenizer
+
     image  = load_512(args.img_path)
     out_image, image_pair, prompted_baseline = run_inv_sd(image, args)
 

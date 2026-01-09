@@ -57,9 +57,10 @@ def interpret_prompt(prompt, config):
     B = None
     f = None
     try:
-        B = float(generated_response.split("<begin_baseline>")[-1].split("<end_baseline>")[0])
-        f = float(generated_response.split("<begin_focal-length>")[-1].split("<end_focal-length>")[0])
+        B = float(generated_response.split("<begin_baseline>")[-1].split("<end_baseline>")[0].lstrip("B"))
+        f = float(generated_response.split("<begin_focal-length>")[-1].split("<end_focal-length>")[0].lstrip("f"))
     except Exception as e:
+        print(generated_response)
         raise e
     assert B != None
     assert f != None
