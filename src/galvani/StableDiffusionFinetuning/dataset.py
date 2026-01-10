@@ -1,7 +1,7 @@
 import json
 import ijson
 import sys
-from torch.utils.data import IterableDataset
+from torch.utils.data import IterableDataset, Dataset
 import os
 import math
 from PIL import Image
@@ -18,7 +18,6 @@ def Image_to_str(img):
 def str_to_Image(str, img_size):
     b = base64.b64decode(str)
     img = Image.frombytes("RGB", (img_size), b, "raw")
-    img.show()
     return img
 
 
@@ -30,17 +29,21 @@ def load_metadata_file(file_path):
     return metadata
 
 
-def load_dataset(dataset_config):
+def load_dataset(dataset_config, transform=lambda x: x):
     print("loading stacked dataset...")
     dataset = []
     print()
     counter = 0
     try:
         with open(dataset_config["processed_dataset_path"], "rb") as infile:
-            for item in ijson.items(infile, "", multiple_values=True):
+            for rec in ijson.items(infile, "", multiple_values=True):
                 sys.stdout.write("\033[F")
                 print(f"processing entry {counter}")
-                dataset.append(item)
+                for type in ["left", "right", "stacked"]:
+                    rec[f"{type}_img"] = str_to_Image(rec[f"{type}_img"], rec[f"{type}_size"])
+                    rec[f"{type}_img"] = transform(rec[f"{type}_img"])
+                    del rec[f"{type}_size"]
+                dataset.append(rec)
                 counter += 1
     except FileNotFoundError:
         for root, dirs, _ in os.walk(dataset_config["loose_dataset_path"]): # root: image_collection
@@ -92,9 +95,10 @@ def load_dataset(dataset_config):
     print("stacked dataset loaded.")
     return dataset
 
-
-class TrainDataset(IterableDataset):
-    def __init__(self, config, return_only_images=False, shuffle=False):
+# TODO maybe use an IterableDataset here instead for better performance?
+# - yield one dataset entry at a time with ijson in __iter__ instead of loading everything into memory in the constructor
+class TrainDataset(Dataset):
+    def __init__(self, config, return_only_images=False):
         self.config = config
         self.only_images = return_only_images
         self.to_tensor = transforms.Compose([
@@ -102,22 +106,18 @@ class TrainDataset(IterableDataset):
             transforms.ToTensor(),
             transforms.Normalize([0.5], [0.5])
         ])
-        self.data_list = load_dataset(self.config)
-        self.indices = np.arange(len(self.data_list))
-        if shuffle:
-            random.shuffle(self.indices)
+        self.data_list = load_dataset(self.config, transform=self.to_tensor)
 
-    def __iter__(self): # TODO maybe directly save tensors/embeddings instead of PIL Images?
-        for i in self.indices:
-            rec = self.data_list[i]
-            for type in ["left", "right", "stacked"]:
-                img = str_to_Image(rec[f"{type}_img"], rec[f"{type}_size"])
-                rec[f"{type}_img"] = self.to_tensor(img)
-                del rec[f"{type}_size"]
-                
-            if self.only_images:
-                yield rec["stacked_img"]
-            else:
-                yield rec
+    def __len__(self):
+        return len(self.data_list)
+
+    # TODO maybe directly save tensors/embeddings instead of PIL Images?
+    # TODO if used together with prompts, return each target prompt here as well
+    def __getitem__(self, idx):
+        rec = self.data_list[idx]
+        if self.only_images:
+            return rec["stacked_img"], [] # second value is reserved for prompts
+        else:
+            return rec, []
     
     

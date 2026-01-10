@@ -21,6 +21,7 @@ src/galvani/zero_123/zero123/view_release/__MACOSX/._valid_paths.json
 
 # output
 src/galvani/StereoDiffusion/outputs/*
+src/galvani/StableDiffusionFinetuning/out/*
 
 # latex
 latex/**/*.aux

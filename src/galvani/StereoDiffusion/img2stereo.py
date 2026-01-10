@@ -245,7 +245,7 @@ def parse_args():
     parser.add_argument(
         "--baseline_prompt",
         type=str,
-        default="B=4.0"
+        default="default"
     )
     return parser.parse_args()
 
@@ -389,15 +389,14 @@ def run_inv_sd(image, args):
     # custom baseline distance and focal length
     DEPTHMAP_FROM_PROMPT = False
     DEPTHMAP_FROM_SENSOR = True
-    if args.baseline_prompt:
+    if args.baseline_prompt != "default":
         DEPTHMAP_FROM_PROMPT = True
         DEPTHMAP_FROM_SENSOR = False
     prompted_baseline = None
     focal_length = None
 
     # set baseline via prompt
-    # IMPORTANT: requires focal length from sensor
-    if DEPTHMAP_FROM_PROMPT and args.baseline_prompt:
+    if DEPTHMAP_FROM_PROMPT:
         qpi_config = get_config(path="../QwenPromptInterpreter/cfg/config.json")
         prompted_baseline, focal_length = interpret_prompt(args.baseline_prompt, qpi_config)
         if prompted_baseline == 0.0:

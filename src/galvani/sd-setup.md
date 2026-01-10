@@ -20,7 +20,7 @@ pip install -r requirements.txt
 cd ../PromptToPrompt
 pip install -r requirements.txt
 cd ..
-pip install timm "numpy<2" tueplots accelerate
+pip install timm "numpy<2" tueplots accelerate ijson
 pip install diffusers==0.35.2 transformers==4.57.1
 ```
 
@@ -53,7 +53,13 @@ python img2stereo.py --depthmodel_path=midas_models/dpt_hybrid-midas-501f0c75.pt
 python img2stereo.py --depthmodel_path=midas_models/dpt_hybrid-midas-501f0c75.pt  --img_path="../../../data/galvani/image_collection/Dino/Camera_011/left.jpg" --output_prefix="outputs/img2stereo/Dino-Camera_011/out" --baseline_prompt="set B to 0.05 and f to 40.2"
 ```
 
-<!-- python3 img2stereo.py --depthmodel_path=midas_models/dpt_hybrid-midas-501f0c75.pt  --img_path="../../../resources/cat_left_gt.png" --output_prefix="../../../resources/stereodiffusion/cat" --baseline_prompt="set B to 0.05 and f to 40.2" --estimate_only_depth -->
+<!-- 
+python3 img2stereo.py --depthmodel_path=midas_models/dpt_hybrid-midas-501f0c75.pt  --img_path="../../../resources/cat_left_gt.png" --output_prefix="../../../resources/stereodiffusion/cat" --baseline_prompt="set B to 0.12 and f to 39.1" --estimate_only_depth
+
+python3 img2stereo.py --depthmodel_path=midas_models/dpt_hybrid-midas-501f0c75.pt  --img_path="../../../resources/mona_lisa_left_gt.png" --output_prefix="../../../resources/stereodiffusion/mona_lisa" --baseline_prompt="set B to 0.12 and f to 39.1" --estimate_only_depth
+
+python3 img2stereo.py --depthmodel_path=midas_models/dpt_hybrid-midas-501f0c75.pt  --img_path="../../../resources/car_left.jpg" --output_prefix="../../../resources/stereodiffusion/car" --meta_path="../../../resources/car_meta.json" --estimate_only_depth 
+-->
 
 
 ## zero123 training
@@ -103,4 +109,5 @@ cd src/galvani/StableDiffusionFinetuning
 ### finetune
 ```
 python main.py
+python main2.py
 ```
