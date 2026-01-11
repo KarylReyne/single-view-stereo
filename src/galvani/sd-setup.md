@@ -61,8 +61,12 @@ python3 img2stereo.py --depthmodel_path=midas_models/dpt_hybrid-midas-501f0c75.p
 python3 img2stereo.py --depthmodel_path=midas_models/dpt_hybrid-midas-501f0c75.pt  --img_path="../../../resources/car_left.jpg" --output_prefix="../../../resources/stereodiffusion/car" --meta_path="../../../resources/car_meta.json" --estimate_only_depth 
 -->
 
+<!--
+python3 img2stereo_train.py --depthmodel_path=midas_models/dpt_hybrid-midas-501f0c75.pt  --img_path="../../../resources/cat_left_gt.png" --output_prefix="../../../resources/stereodiffusion/TRAIN-TEST_cat" --baseline_prompt="set B to 0.12 and f to 39.1"
+ -->
 
-## zero123 training
+
+## zero123 training - DEPRECATED
 ### for galvani only
 ```
 srun --job-name "train01" --partition=a100-galvani --ntasks=1 --nodes=1 --gres=gpu:4 --time 1:00:00 --pty bash
@@ -101,12 +105,11 @@ python main.py \
 ## stable diffusion finetuning
 <!-- based on https://medium.com/@heyamit10/fine-tuning-stable-diffusion-xl-a-practical-guide-a4b3e579ce9a -->
 ### setup
-<!-- NOTE THAT A DIFFERENT ENVIRONMENT IS USED HERE !!! -->
 ```
-conda activate stereoview-finetuning
 cd src/galvani/StableDiffusionFinetuning
 ```
 ### finetune
+<!-- second one at least executes successfully... -->
 ```
 python main.py
 python main2.py

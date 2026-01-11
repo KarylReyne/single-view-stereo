@@ -23,7 +23,7 @@ def interpret_prompt(prompt, config):
     model, tokenizer = setup_models(config)
 
     instruction = lambda p: f"""
-        You are given a query that specifies a baseline distance B as a floating-point number and a focal length f as a floating-point number. Please return B and f in the following format:
+        You are given a query that specifies a baseline distance B as a floating-point number and a focal length f as a floating-point number. Please return the baseline distance B and the focal length f in the following format:
         <begin_baseline>B<end_baseline>
         <begin_focal-length>f<end_focal-length>
         Remember that your answer has to be in the exact format specified above. Don't output anything else.
