@@ -14,7 +14,7 @@ from DensePredictionTransformer.dpt.models import DPTDepthModel
 from stereoutils import stereo_shift_torch, norm_depth, BNAttention, regiter_attention_editor_diffusers
 sys.path.append('./PromptToPrompt')
 import ptp_utils
-from ptp_null_text import AttentionStore, show_cross_attention, make_controller
+from ptp_null_text import AttentionStore, aggregate_attention, make_controller
 from skimage.transform import resize
 # import p2putil
 from diffusers import StableDiffusionPipeline, DDIMScheduler
@@ -210,7 +210,7 @@ class NullInversion:
         self.context = None
 
 
-def run_and_display(ldm_stable, prompts, controller, disparity, deblur, latent=None, run_baseline=False, generator=None, uncond_embeddings=None, verbose=True, save_path=None):
+def run_and_display(ldm_stable, prompts, controller, disparity, deblur, latent=None, run_baseline=False, generator=None, uncond_embeddings=None, reconstruct_single_image=False, verbose=True, save_path=None):
     if run_baseline:
         print("w.o. prompt-to-prompt")
         images, latent = run_and_display(
@@ -222,7 +222,8 @@ def run_and_display(ldm_stable, prompts, controller, disparity, deblur, latent=N
             latent=torch.concat([latent,latent],0),
             run_baseline=False, 
             generator=generator, 
-            uncond_embeddings=uncond_embeddings, 
+            uncond_embeddings=uncond_embeddings,
+            reconstruct_single_image=reconstruct_single_image,
             verbose=verbose,
             save_path=save_path.replace(".png", "_without-ptp.png")
         )
@@ -234,7 +235,8 @@ def run_and_display(ldm_stable, prompts, controller, disparity, deblur, latent=N
         disparity, 
         uncond_embeddings=uncond_embeddings, 
         latent=latent,
-        deblur=deblur
+        deblur=deblur,
+        reconstruct_single_image=reconstruct_single_image
     )
     if verbose and (save_path != None):
         save_images(images, save_path)
@@ -265,6 +267,22 @@ def save_images(images, path, num_rows=1, offset_ratio=0.02):
                 i * num_cols + j]
 
     Image.fromarray(image_).save(path)
+
+
+def save_cross_attention(prompts, tokenizer, attention_store: AttentionStore, res: int, from_where: List[str], path: str, select: int = 0):
+    tokens = tokenizer.encode(prompts[select])
+    decoder = tokenizer.decode
+    attention_maps = aggregate_attention(attention_store, res, from_where, True, select, prompts)
+    images = []
+    for i in range(len(tokens)):
+        image = attention_maps[:, :, i]
+        image = 255 * image / image.max()
+        image = image.unsqueeze(-1).expand(*image.shape, 3)
+        image = image.numpy().astype(np.uint8)
+        image = np.array(Image.fromarray(image).resize((256, 256)))
+        image = ptp_utils.text_under_image(image, decoder(int(tokens[i])))
+        images.append(image)
+    save_images(np.stack(images, axis=0), path)
 
 
 def parse_args():
@@ -344,7 +362,8 @@ def text2stereoimage_ldm_stable(
     uncond_embeddings=None,
     start_time=50,
     return_type='image',
-    deblur=False
+    deblur=False,
+    reconstruct_single_image=False
 ):
     # sa = 10
     # editor = BNAttention(start_step=sa,direction=args.direction)
@@ -383,49 +402,49 @@ def text2stereoimage_ldm_stable(
             context = torch.cat([uncond_embeddings[i].expand(*text_embeddings.shape), text_embeddings])
         else:
             context = torch.cat([uncond_embeddings_, text_embeddings])
-        
-        # print(controller.attention_store)
-        latents = ptp_utils.diffusion_step(model, controller, latents, context, t, guidance_scale, low_resource=False)
+        latents = ptp_utils.diffusion_step(model, controller, latents, context, t, guidance_scale, low_resource=LOW_RESOURCE)
         
         if i % 10 == 0:
             _latents_at_t = ptp_utils.latent2image(model.vae, latents)
             save_images(_latents_at_t, f'{args.output_prefix}_latents_at_t={t}.png')
         
-        if i == 10:
-            if isinstance(disparity,torch.Tensor):
-                disparity = torch.nn.functional.interpolate(disparity.unsqueeze(1),size=[64,64],mode="bicubic",align_corners=False,).squeeze(1)
-            elif isinstance(disparity,np.ndarray):
-                disparity = resize(disparity,(64,64))
-            # latents = stereo_shift_torch(latents[:1],disparity,stereo_balance=-1)
-            scale_factor_percent = 8
-            latents_ts = stereo_shift_torch(
-                latents[:1], 
-                disparity, 
-                scale_factor_percent=scale_factor_percent
-            )
-            latents_ts = latents_ts[1:]
-            # latents_np_ = process_pixels_rgba_naive(latents_np[0])
-            # latents_ts =torch.tensor(rearrange(latents_np,'b h w c -> b c h w'),device=device)
-            latents = torch.cat([latents[:1],latents_ts],0)
-            mask = latents_ts[:,0,...] != 0
-            mask = rearrange(mask,'b h w ->b () h w').repeat(1,4,1,1)
-            nosie = torch.randn_like(latents)
-            
-            if deblur: # avoid blurry
-                latents[1:][~mask] = nosie[1:][~mask]
-                latents[1:][mask] = latents_ts[mask]
+        # also reconstruct a right-side stereo image (StereoDiffusion)
+        if not reconstruct_single_image:
+            if i == 10:
+                if isinstance(disparity,torch.Tensor):
+                    disparity = torch.nn.functional.interpolate(disparity.unsqueeze(1),size=[64,64],mode="bicubic",align_corners=False,).squeeze(1)
+                elif isinstance(disparity,np.ndarray):
+                    disparity = resize(disparity,(64,64))
+                # latents = stereo_shift_torch(latents[:1],disparity,stereo_balance=-1)
+                scale_factor_percent = 8
+                latents_ts = stereo_shift_torch(
+                    latents[:1], 
+                    disparity, 
+                    scale_factor_percent=scale_factor_percent
+                )
+                latents_ts = latents_ts[1:]
+                # latents_np_ = process_pixels_rgba_naive(latents_np[0])
+                # latents_ts =torch.tensor(rearrange(latents_np,'b h w c -> b c h w'),device=device)
+                latents = torch.cat([latents[:1],latents_ts],0)
+                mask = latents_ts[:,0,...] != 0
+                mask = rearrange(mask,'b h w ->b () h w').repeat(1,4,1,1)
+                nosie = torch.randn_like(latents)
+                
+                if deblur: # avoid blurry
+                    latents[1:][~mask] = nosie[1:][~mask]
+                    latents[1:][mask] = latents_ts[mask]
 
-        if  (i > 10 and i % 10 == 0):
-            latents_ts= stereo_shift_torch(
-                latents[:1], 
-                disparity, 
-                scale_factor_percent=scale_factor_percent
-            )
-            latents_ts = latents_ts[1:]
-            # latents_ts =torch.tensor(rearrange(latents_r_np,'b h w c -> b c h w'),device=device)
-            latents[1:][mask] = latents_ts[mask]
-            # latents[1:][mask] = replacement
-            # import pdb;pdb.set_trace()
+            if  (i > 10 and i % 10 == 0):
+                latents_ts= stereo_shift_torch(
+                    latents[:1], 
+                    disparity, 
+                    scale_factor_percent=scale_factor_percent
+                )
+                latents_ts = latents_ts[1:]
+                # latents_ts =torch.tensor(rearrange(latents_r_np,'b h w c -> b c h w'),device=device)
+                latents[1:][mask] = latents_ts[mask]
+                # latents[1:][mask] = replacement
+                # import pdb;pdb.set_trace()
         
     if return_type == 'image':
         image = ptp_utils.latent2image(model.vae, latents)
@@ -434,7 +453,7 @@ def text2stereoimage_ldm_stable(
     return image, latent
 
 
-def run_inv_sd(image, args):
+def get_baseline_and_focal_length(args):
     # custom baseline distance and focal length
     DEPTHMAP_FROM_PROMPT = False
     DEPTHMAP_FROM_SENSOR = True
@@ -469,28 +488,28 @@ def run_inv_sd(image, args):
         print(f"[DEPTHMAP_FROM_{'PROMPT' if DEPTHMAP_FROM_PROMPT else 'SENSOR'}] B = {prompted_baseline}")
         print(f"[DEPTHMAP_FROM_{'PROMPT' if DEPTHMAP_FROM_PROMPT else 'SENSOR'}] f = {focal_length}")
 
+    return prompted_baseline, focal_length
 
-    depthmodel_path = args.depthmodel_path
-    deblur = args.deblur
 
+def create_save_path_from_prefix(args):
+    """
+    given path/to/prefix_, creates path/to/ if it does not already exist 
+    """
     save_path = "/".join(args.output_prefix.split("/")[:-1])
     os.makedirs(save_path, exist_ok=True)
 
-    device = torch.device("cuda")
-    null_inversion = NullInversion(ldm_stable)
-    prompt = ""
-    prompts = [prompt]
-    (image_gt, image_enc), x_t, uncond_embeddings = null_inversion.invert(image, prompt, offsets=(0,0,200,0), verbose=True)
-    # del null_inversion
 
+def estimate_disparity_from_gt(image_gt, args, prompted_baseline, focal_length, device):
     net_w = net_h = 384
+
     depthmodel = DPTDepthModel(
-        path=depthmodel_path,
+        path=args.depthmodel_path,
         backbone="vitb_rn50_384",
         non_negative=True,
         enable_attention_hooks=False,
         invert=args.estimate_only_depth
-    ).cuda()
+    ).to(device)
+
     image_gt_ = torch.tensor(np.expand_dims(image_gt/255,0).transpose(0,3,1,2)/255, device=device, dtype=torch.float32)
     with torch.no_grad():
         prediction = depthmodel.forward(image_gt_)
@@ -524,6 +543,52 @@ def run_inv_sd(image, args):
         Image.fromarray(map).save(f'{args.output_prefix}_DPT-disparity.png')
     del depthmodel
 
+    return disparity
+
+
+def run_inv_sd(image, args):
+    device = torch.device("cuda")
+    create_save_path_from_prefix(args)
+
+    prompted_baseline, focal_length = get_baseline_and_focal_length(args)
+
+    # TODO define the null-text inversion reconstruction prompt (left empty by StereoDiffusion)
+    # reconstruction_prompt = ""
+    reconstruction_prompt = "a cat sitting next to a mirror"
+    print(f"[RECONSTRUCTION_PROMPT] '{reconstruction_prompt}'")
+
+    null_inversion = NullInversion(ldm_stable)
+    (image_gt, image_enc), x_t, uncond_embeddings = null_inversion.invert(image, reconstruction_prompt, offsets=(0,0,200,0), verbose=True)
+    del null_inversion
+
+    disparity = estimate_disparity_from_gt(image_gt, args, prompted_baseline, focal_length, device)
+
+    # TODO test the null-text inversion reconstruction
+    print("testing null-text inversion reconstruction...")
+    prompts = [reconstruction_prompt]
+    controller = AttentionStore(low_resource=LOW_RESOURCE)
+    controller = EmptyControl()
+    image_inv, latent = run_and_display(
+        ldm_stable,
+        prompts, 
+        controller, 
+        disparity, 
+        args.deblur, 
+        run_baseline=False, # 1 => run with EmptyControl() first (no prompt conditioning)
+        latent=x_t, 
+        uncond_embeddings=uncond_embeddings,
+        reconstruct_single_image=True, # 1 => run only Prompt-To-Prompt (only 'left' image reconstruction)
+        verbose=False,
+        save_path=f'{args.output_prefix}_images_reconstruction-test.png'
+    )
+    print("saving images...", end="")
+    save_images([image_gt, image_enc, image_inv[0]], f'{args.output_prefix}_images_gt-rec-inv.png')
+    save_cross_attention(prompts, tokenizer, controller, 16, ["up", "down"], f'{args.output_prefix}_images_cross-attention.png')
+    print("done")
+    exit()
+
+    
+
     # image, latent = text2stereoimage_ldm_stable(ldm_stable, prompts*2, controller,uncond_embeddings = uncond_embeddings,latent=torch.concat([x_t,x_t],0))
     # image_ = rearrange(image,'b h w c->h (b w) c')
 
@@ -538,10 +603,12 @@ def run_inv_sd(image, args):
     #     deblur=deblur
     # )
 
+    # prompts = [prompt] # assuming batch_size = 1
     prompts = [
         "a cat sitting next to a mirror",
         "a tiger sitting next to a mirror"
     ]
+    
     cross_replace_steps = {'default_': .8,}
     self_replace_steps = .5
     blend_word = ((('cat',), ("tiger",))) # for local edit. If it is not local yet - use only the source object: blend_word = ((('cat',), ("cat",))).
@@ -564,17 +631,13 @@ def run_inv_sd(image, args):
         prompts, 
         controller, 
         disparity, 
-        deblur, 
+        args.deblur, 
         run_baseline=True, # 1 => run with EmptyControl() first (no prompt conditioning)
         latent=x_t, 
         uncond_embeddings=uncond_embeddings, 
         verbose=True,
         save_path=f'{args.output_prefix}_images_inference.png'
     )
-
-    print("showing from left to right: the ground truth image, the vq-autoencoder reconstruction, the null-text inverted image")
-    save_images([image_gt, image_enc, image_inv[0]], f'{args.output_prefix}_images_gt-rec-inv.png')
-    # show_cross_attention(prompts, tokenizer, controller, 16, ["up", "down"])
 
     image_pair = rearrange(image_inv,'b h w c->h (b w) c')
     if args.estimate_only_depth:
@@ -599,6 +662,7 @@ if __name__ == "__main__":
     GUIDANCE_SCALE = 7.5
     NUM_DDIM_STEPS = 50
     MAX_NUM_WORDS = 77
+    LOW_RESOURCE = False
     ldm_stable = StableDiffusionPipeline.from_pretrained(
         "CompVis/stable-diffusion-v1-4", 
         scheduler=scheduler

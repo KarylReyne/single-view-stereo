@@ -178,7 +178,19 @@ def register_attention_control(model, controller):
         else:
             to_out = self.to_out
 
-        def forward(x, context=None, mask=None):
+        # https://github.com/huggingface/diffusers/blob/29a930a142bba88ce30eba8e93e512a3e9bdc49c/src/diffusers/models/attention_processor.py#L567
+        # the wrapper is supposed to deal with depricated argument names
+        # see also: https://github.com/huggingface/diffusers/blob/29a930a142bba88ce30eba8e93e512a3e9bdc49c/src/diffusers/models/attention_processor.py#L1106
+        def forward(
+            hidden_states: torch.Tensor,
+            encoder_hidden_states: Optional[torch.Tensor] = None,
+            attention_mask: Optional[torch.Tensor] = None
+        ):
+            # wrapper for arg names
+            x = hidden_states
+            context = encoder_hidden_states
+            mask = attention_mask
+
             batch_size, sequence_length, dim = x.shape
             h = self.heads
             q = self.to_q(x)
@@ -186,9 +198,11 @@ def register_attention_control(model, controller):
             context = context if is_cross else x
             k = self.to_k(context)
             v = self.to_v(context)
-            q = self.reshape_heads_to_batch_dim(q)
-            k = self.reshape_heads_to_batch_dim(k)
-            v = self.reshape_heads_to_batch_dim(v)
+
+            # according to https://github.com/adobe-research/custom-diffusion/issues/23#issuecomment-1870217116
+            q = self.head_to_batch_dim(q)
+            k = self.head_to_batch_dim(k)
+            v = self.head_to_batch_dim(v)
 
             sim = torch.einsum("b i d, b j d -> b i j", q, k) * self.scale
 
@@ -202,9 +216,11 @@ def register_attention_control(model, controller):
             attn = sim.softmax(dim=-1)
             attn = controller(attn, is_cross, place_in_unet)
             out = torch.einsum("b i j, b j d -> b i d", attn, v)
-            out = self.reshape_batch_dim_to_heads(out)
+            out = self.head_to_batch_dim(out)
+            print(out.shape)
+            print(to_out) # TODO
             return to_out(out)
-
+            
         return forward
 
     class DummyController:
@@ -219,7 +235,9 @@ def register_attention_control(model, controller):
         controller = DummyController()
 
     def register_recr(net_, count, place_in_unet):
-        if net_.__class__.__name__ == 'CrossAttention':
+        # if net_.__class__.__name__ == 'CrossAttention':
+        if net_.__class__.__name__ == 'Attention':
+            # see https://github.com/huggingface/diffusers/blob/29a930a142bba88ce30eba8e93e512a3e9bdc49c/src/diffusers/models/attention_processor.py#L50 
             net_.forward = ca_forward(net_, place_in_unet)
             return count + 1
         elif hasattr(net_, 'children'):

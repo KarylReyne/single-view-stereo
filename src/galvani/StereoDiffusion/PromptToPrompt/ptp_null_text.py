@@ -88,7 +88,7 @@ class AttentionControl(abc.ABC):
     
     @property
     def num_uncond_att_layers(self):
-        return self.num_att_layers if LOW_RESOURCE else 0
+        return self.num_att_layers if self.low_resource else 0
     
     @abc.abstractmethod
     def forward (self, attn, is_cross: bool, place_in_unet: str):
@@ -96,7 +96,7 @@ class AttentionControl(abc.ABC):
 
     def __call__(self, attn, is_cross: bool, place_in_unet: str):
         if self.cur_att_layer >= self.num_uncond_att_layers:
-            if LOW_RESOURCE:
+            if self.low_resource:
                 attn = self.forward(attn, is_cross, place_in_unet)
             else:
                 h = attn.shape[0]
@@ -112,10 +112,11 @@ class AttentionControl(abc.ABC):
         self.cur_step = 0
         self.cur_att_layer = 0
 
-    def __init__(self):
+    def __init__(self, low_resource=False):
         self.cur_step = 0
         self.num_att_layers = -1
         self.cur_att_layer = 0
+        self.low_resource = low_resource
 
 class SpatialReplace(EmptyControl):
     
@@ -162,8 +163,8 @@ class AttentionStore(AttentionControl):
         self.step_store = self.get_empty_store()
         self.attention_store = {}
 
-    def __init__(self):
-        super(AttentionStore, self).__init__()
+    def __init__(self, low_resource=False):
+        super(AttentionStore, self).__init__(low_resource=low_resource)
         self.step_store = self.get_empty_store()
         self.attention_store = {}
 
@@ -269,10 +270,9 @@ def get_equalizer(text: str, tokenizer, word_select: Union[int, Tuple[int, ...]]
         equalizer[:, inds] = val
     return equalizer
 
-def aggregate_attention(attention_store: AttentionStore, res: int, from_where: List[str], is_cross: bool, select: int):
+def aggregate_attention(attention_store: AttentionStore, res: int, from_where: List[str], is_cross: bool, select: int, prompts: List[str]):
     out = []
     attention_maps = attention_store.get_average_attention()
-    print(attention_maps)
     num_pixels = res ** 2
     for location in from_where:
         for item in attention_maps[f"{location}_{'cross' if is_cross else 'self'}"]:
@@ -303,7 +303,7 @@ def make_controller(prompts: List[str], is_replace_controller: bool, cross_repla
 def show_cross_attention(prompts, tokenizer, attention_store: AttentionStore, res: int, from_where: List[str], select: int = 0):
     tokens = tokenizer.encode(prompts[select])
     decoder = tokenizer.decode
-    attention_maps = aggregate_attention(attention_store, res, from_where, True, select)
+    attention_maps = aggregate_attention(attention_store, res, from_where, True, select, prompts)
     images = []
     for i in range(len(tokens)):
         image = attention_maps[:, :, i]
