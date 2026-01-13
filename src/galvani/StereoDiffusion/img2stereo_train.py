@@ -404,7 +404,7 @@ def text2stereoimage_ldm_stable(
             context = torch.cat([uncond_embeddings_, text_embeddings])
         latents = ptp_utils.diffusion_step(model, controller, latents, context, t, guidance_scale, low_resource=LOW_RESOURCE)
         
-        if i % 10 == 0:
+        if i % 5 == 0:
             _latents_at_t = ptp_utils.latent2image(model.vae, latents)
             save_images(_latents_at_t, f'{args.output_prefix}_latents_at_t={t}.png')
         
@@ -567,7 +567,6 @@ def run_inv_sd(image, args):
     print("testing null-text inversion reconstruction...")
     prompts = [reconstruction_prompt]
     controller = AttentionStore(low_resource=LOW_RESOURCE)
-    controller = EmptyControl()
     image_inv, latent = run_and_display(
         ldm_stable,
         prompts, 
