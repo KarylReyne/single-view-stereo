@@ -1,34 +1,27 @@
-
 import argparse, os
 import torch
 import numpy as np
 from PIL import Image
-from tqdm import tqdm, trange
-from einops import rearrange, repeat
+from tqdm import tqdm
+from einops import rearrange
 import sys
-from typing import Optional, Union, Tuple, List
+from typing import Optional, Union, List
 sys.path.append('./StableDiffusion')
 sys.path.append('./DensePredictionTransformer')
-from StableDiffusion.ldm.util import instantiate_from_config
 from DensePredictionTransformer.dpt.models import DPTDepthModel
-from stereoutils import stereo_shift_torch, norm_depth, BNAttention, regiter_attention_editor_diffusers
+from stereoutils import stereo_shift_torch, norm_depth
 sys.path.append('./PromptToPrompt')
 import ptp_utils
-from ptp_null_text import AttentionStore, aggregate_attention, make_controller
+from ptp_null_text import AttentionStore, make_controller
 from skimage.transform import resize
-# import p2putil
 from diffusers import StableDiffusionPipeline, DDIMScheduler
-# torch.set_grad_enabled(False)
 import torch.nn.functional as nnf
-import abc
-import seq_aligner
-import shutil
 from torch.optim.adam import Adam
-import torchvision
 
 sys.path.append('..')
 from QwenPromptInterpreter.prompt2float import interpret_prompt
-from misc_util import get_config
+from misc_util import get_config, create_save_path_from_prefix, add_subfolder_to_save_prefix
+from ptp_save_util import save_images, save_cross_attention
 
 
 class EmptyControl:
@@ -210,7 +203,7 @@ class NullInversion:
         self.context = None
 
 
-def run_and_display(ldm_stable, prompts, controller, disparity, deblur, latent=None, run_baseline=False, generator=None, uncond_embeddings=None, reconstruct_single_image=False, verbose=True, save_path=None):
+def run_and_display(ldm_stable, prompts, controller, disparity, deblur, latent=None, run_baseline=False, generator=None, uncond_embeddings=None, reconstruct_single_image=False, verbose=True, save_prefix=None):
     if run_baseline:
         print("w.o. prompt-to-prompt")
         images, latent = run_and_display(
@@ -225,7 +218,7 @@ def run_and_display(ldm_stable, prompts, controller, disparity, deblur, latent=N
             uncond_embeddings=uncond_embeddings,
             reconstruct_single_image=reconstruct_single_image,
             verbose=verbose,
-            save_path=save_path.replace(".png", "_without-ptp.png")
+            save_prefix=os.sep.join([save_prefix, "without-ptp"])
         )
         print("with prompt-to-prompt")
     images, latent = text2stereoimage_ldm_stable(
@@ -236,53 +229,13 @@ def run_and_display(ldm_stable, prompts, controller, disparity, deblur, latent=N
         uncond_embeddings=uncond_embeddings, 
         latent=latent,
         deblur=deblur,
-        reconstruct_single_image=reconstruct_single_image
+        reconstruct_single_image=reconstruct_single_image,
+        verbose=verbose,
+        save_prefix=save_prefix
     )
-    if verbose and (save_path != None):
-        save_images(images, save_path)
+    if verbose and (save_prefix != None):
+        save_images(images, save_prefix+"_images_inference.png")
     return images, latent
-
-
-def save_images(images, path, num_rows=1, offset_ratio=0.02):
-    if type(images) is list:
-        num_empty = len(images) % num_rows
-    elif images.ndim == 4:
-        num_empty = images.shape[0] % num_rows
-    else:
-        images = [images]
-        num_empty = 0
-
-    empty_images = np.ones(images[0].shape, dtype=np.uint8) * 255
-    images = [image.astype(np.uint8) for image in images] + [empty_images] * num_empty
-    num_items = len(images)
-
-    h, w, c = images[0].shape
-    offset = int(h * offset_ratio)
-    num_cols = num_items // num_rows
-    image_ = np.ones((h * num_rows + offset * (num_rows - 1),
-                      w * num_cols + offset * (num_cols - 1), 3), dtype=np.uint8) * 255
-    for i in range(num_rows):
-        for j in range(num_cols):
-            image_[i * (h + offset): i * (h + offset) + h:, j * (w + offset): j * (w + offset) + w] = images[
-                i * num_cols + j]
-
-    Image.fromarray(image_).save(path)
-
-
-def save_cross_attention(prompts, tokenizer, attention_store: AttentionStore, res: int, from_where: List[str], path: str, select: int = 0):
-    tokens = tokenizer.encode(prompts[select])
-    decoder = tokenizer.decode
-    attention_maps = aggregate_attention(attention_store, res, from_where, True, select, prompts)
-    images = []
-    for i in range(len(tokens)):
-        image = attention_maps[:, :, i]
-        image = 255 * image / image.max()
-        image = image.unsqueeze(-1).expand(*image.shape, 3)
-        image = image.numpy().astype(np.uint8)
-        image = np.array(Image.fromarray(image).resize((256, 256)))
-        image = ptp_utils.text_under_image(image, decoder(int(tokens[i])))
-        images.append(image)
-    save_images(np.stack(images, axis=0), path)
 
 
 def parse_args():
@@ -363,7 +316,9 @@ def text2stereoimage_ldm_stable(
     start_time=50,
     return_type='image',
     deblur=False,
-    reconstruct_single_image=False
+    reconstruct_single_image=False,
+    verbose=False,
+    save_prefix=None
 ):
     # sa = 10
     # editor = BNAttention(start_step=sa,direction=args.direction)
@@ -394,7 +349,8 @@ def text2stereoimage_ldm_stable(
     latent, latents = ptp_utils.init_latent(latent, model, height, width, generator, batch_size)
 
     _latents_init = ptp_utils.latent2image(model.vae, latents)
-    save_images(_latents_init, f'{args.output_prefix}_initial_latents.png')
+    if verbose and (save_prefix != None):
+        save_images(_latents_init, f'{save_prefix}_initial_latents.png')
 
     model.scheduler.set_timesteps(num_inference_steps)
     for i, t in enumerate(tqdm(model.scheduler.timesteps[-start_time:])):
@@ -404,9 +360,9 @@ def text2stereoimage_ldm_stable(
             context = torch.cat([uncond_embeddings_, text_embeddings])
         latents = ptp_utils.diffusion_step(model, controller, latents, context, t, guidance_scale, low_resource=LOW_RESOURCE)
         
-        if i % 5 == 0:
+        if (i % 5 == 0) and verbose and (save_prefix != None):
             _latents_at_t = ptp_utils.latent2image(model.vae, latents)
-            save_images(_latents_at_t, f'{args.output_prefix}_latents_at_t={t}.png')
+            save_images(_latents_at_t, f'{save_prefix}_latents_at_t={t}.png')
         
         # also reconstruct a right-side stereo image (StereoDiffusion)
         if not reconstruct_single_image:
@@ -491,14 +447,6 @@ def get_baseline_and_focal_length(args):
     return prompted_baseline, focal_length
 
 
-def create_save_path_from_prefix(args):
-    """
-    given path/to/prefix_, creates path/to/ if it does not already exist 
-    """
-    save_path = "/".join(args.output_prefix.split("/")[:-1])
-    os.makedirs(save_path, exist_ok=True)
-
-
 def estimate_disparity_from_gt(image_gt, args, prompted_baseline, focal_length, device):
     net_w = net_h = 384
 
@@ -548,7 +496,7 @@ def estimate_disparity_from_gt(image_gt, args, prompted_baseline, focal_length, 
 
 def run_inv_sd(image, args):
     device = torch.device("cuda")
-    create_save_path_from_prefix(args)
+    create_save_path_from_prefix(args.output_prefix)
 
     prompted_baseline, focal_length = get_baseline_and_focal_length(args)
 
@@ -563,49 +511,38 @@ def run_inv_sd(image, args):
 
     disparity = estimate_disparity_from_gt(image_gt, args, prompted_baseline, focal_length, device)
 
-    # TODO test the null-text inversion reconstruction
-    print("testing null-text inversion reconstruction...")
-    prompts = [reconstruction_prompt]
-    controller = AttentionStore(low_resource=LOW_RESOURCE)
-    image_inv, latent = run_and_display(
-        ldm_stable,
-        prompts, 
-        controller, 
-        disparity, 
-        args.deblur, 
-        run_baseline=False, # 1 => run with EmptyControl() first (no prompt conditioning)
-        latent=x_t, 
-        uncond_embeddings=uncond_embeddings,
-        reconstruct_single_image=True, # 1 => run only Prompt-To-Prompt (only 'left' image reconstruction)
-        verbose=False,
-        save_path=f'{args.output_prefix}_images_reconstruction-test.png'
-    )
-    print("saving images...", end="")
-    save_images([image_gt, image_enc, image_inv[0]], f'{args.output_prefix}_images_gt-rec-inv.png')
-    save_cross_attention(prompts, tokenizer, controller, 16, ["up", "down"], f'{args.output_prefix}_images_cross-attention.png')
-    print("done")
-    exit()
-
-    
-
-    # image, latent = text2stereoimage_ldm_stable(ldm_stable, prompts*2, controller,uncond_embeddings = uncond_embeddings,latent=torch.concat([x_t,x_t],0))
-    # image_ = rearrange(image,'b h w c->h (b w) c')
-
-    # controller = EmptyControl()
-    # image, latent = text2stereoimage_ldm_stable(
-    #     ldm_stable, 
-    #     prompts*2, 
-    #     controller,
+    # print("testing null-text inversion reconstruction...")
+    # # rec_save_prefix = add_subfolder_to_save_prefix(args, f"reconstruction{os.sep}left-no-prompt")
+    # rec_save_prefix = add_subfolder_to_save_prefix(args, f"reconstruction{os.sep}left")
+    # prompts = [
+    #     reconstruction_prompt
+    # ]
+    # controller = AttentionStore(low_resource=LOW_RESOURCE)
+    # image_inv, latent = run_and_display(
+    #     ldm_stable,
+    #     prompts, 
+    #     controller, 
     #     disparity, 
-    #     uncond_embeddings=uncond_embeddings, 
-    #     latent=torch.concat([x_t,x_t],0),
-    #     deblur=deblur
+    #     args.deblur, 
+    #     run_baseline=False, # 1 => run with EmptyControl() first (no prompt conditioning)
+    #     latent=x_t, 
+    #     uncond_embeddings=uncond_embeddings,
+    #     reconstruct_single_image=True, # 1 => run only Prompt-To-Prompt (only 'left' image reconstruction)
+    #     verbose=False,
+    #     save_prefix=rec_save_prefix'
     # )
+    # print("saving images...", end="")
+    # save_images([image_gt, image_enc, image_inv[0]], f'{rec_save_prefix}_images_gt-rec-inv.png')
+    # save_cross_attention(prompts, tokenizer, controller, 16, ["up", "down"], f'{rec_save_prefix}_images_cross-attention.png')
+    # print("done")
 
-    # prompts = [prompt] # assuming batch_size = 1
+    print("testing null-text inversion conditioning...")
+    cond_save_prefix = add_subfolder_to_save_prefix(args, f"conditioning{os.sep}left")
+    conditioning_prompt = "a tiger sitting next to a mirror"
+    print(f"[CONDITIONING_PROMPT] '{conditioning_prompt}'")
     prompts = [
-        "a cat sitting next to a mirror",
-        "a tiger sitting next to a mirror"
+        reconstruction_prompt,
+        conditioning_prompt
     ]
     
     cross_replace_steps = {'default_': .8,}
@@ -631,12 +568,19 @@ def run_inv_sd(image, args):
         controller, 
         disparity, 
         args.deblur, 
-        run_baseline=True, # 1 => run with EmptyControl() first (no prompt conditioning)
+        run_baseline=False, # 1 => run with EmptyControl() first (no prompt conditioning)
         latent=x_t, 
-        uncond_embeddings=uncond_embeddings, 
+        uncond_embeddings=uncond_embeddings,
+        reconstruct_single_image=True,
         verbose=True,
-        save_path=f'{args.output_prefix}_images_inference.png'
+        save_prefix=cond_save_prefix
     )
+    print("saving images...", end="")
+    save_images([image_gt, image_enc, image_inv[0]], f'{cond_save_prefix}_images_gt-rec-inv.png')
+    save_images([image_gt, image_enc, image_inv[1]], f'{cond_save_prefix}_images_gt-rec-cond.png')
+    save_cross_attention([prompts[1]], tokenizer, controller, 16, ["up", "down"], f'{cond_save_prefix}_images_cond_cross-attention.png')
+    print("done")
+    exit()
 
     image_pair = rearrange(image_inv,'b h w c->h (b w) c')
     if args.estimate_only_depth:
