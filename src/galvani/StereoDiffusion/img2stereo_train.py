@@ -305,7 +305,7 @@ def load_512(image_path, left=0, right=0, top=0, bottom=0):
 @torch.no_grad()
 def text2stereoimage_ldm_stable(
     model,
-    prompt:  List[str],
+    prompts:  List[str],
     controller,
     disparity,
     num_inference_steps: int = 50,
@@ -320,17 +320,12 @@ def text2stereoimage_ldm_stable(
     verbose=False,
     save_prefix=None
 ):
-    # sa = 10
-    # editor = BNAttention(start_step=sa,direction=args.direction)
-    # regiter_attention_editor_diffusers(model, editor)
-
-    batch_size = len(prompt)
+    batch_size = len(prompts)
     ptp_utils.register_attention_control(model, controller)
     height = width = 512
-    # controller = editor
     
     text_input = model.tokenizer(
-        prompt,
+        prompts,
         padding="max_length",
         max_length=model.tokenizer.model_max_length,
         truncation=True,
@@ -515,6 +510,7 @@ def run_inv_sd(image, args):
     # TODO define the null-text inversion reconstruction prompt (left empty by StereoDiffusion)
     reconstruction_prompt = ""
     # reconstruction_prompt = "a cat sitting next to a mirror"
+    reconstruction_prompt = f"a cat sitting next to a mirror, captured by a stereo camera with baseline distance 0 and focal length {focal_length}"
     print(f"[RECONSTRUCTION_PROMPT] '{reconstruction_prompt}'")
 
     null_inversion = NullInversion(ldm_stable)
@@ -522,7 +518,6 @@ def run_inv_sd(image, args):
     del null_inversion
 
     disparity = estimate_disparity_from_gt(image_gt, args, prompted_baseline, focal_length, device, verbose=True)
-    exit()
 
     # print("testing null-text inversion reconstruction...")
     # # rec_save_prefix = add_subfolder_to_save_prefix(args, f"reconstruction{os.sep}left-no-prompt")
@@ -549,9 +544,54 @@ def run_inv_sd(image, args):
     # save_cross_attention(prompts, tokenizer, controller, 16, ["up", "down"], f'{rec_save_prefix}_images_cross-attention.png')
     # print("done")
 
-    print("testing null-text inversion conditioning...")
-    cond_save_prefix = add_subfolder_to_save_prefix(args, f"conditioning{os.sep}left")
-    conditioning_prompt = "a tiger sitting next to a mirror"
+    # print("testing null-text inversion conditioning...")
+    # cond_save_prefix = add_subfolder_to_save_prefix(args, f"conditioning{os.sep}stereo")
+    # conditioning_prompt = "a tiger sitting next to a mirror"
+    # print(f"[CONDITIONING_PROMPT] '{conditioning_prompt}'")
+    # prompts = [
+    #     reconstruction_prompt,
+    #     conditioning_prompt
+    # ]
+    
+    # cross_replace_steps = {'default_': .8,}
+    # self_replace_steps = .5
+    # blend_word = ((('cat',), ("tiger",))) # for local edit. If it is not local yet - use only the source object: blend_word = ((('cat',), ("cat",))).
+    # eq_params = {"words": ("tiger",), "values": (2,)} # amplify attention to the word "tiger" by *2 
+
+    # controller = make_controller(
+    #     prompts, 
+    #     True, 
+    #     cross_replace_steps, 
+    #     self_replace_steps, 
+    #     tokenizer, 
+    #     device, 
+    #     MAX_NUM_WORDS, 
+    #     NUM_DDIM_STEPS, 
+    #     blend_word, 
+    #     eq_params
+    # )
+    # image_inv, latent = run_and_display(
+    #     ldm_stable,
+    #     prompts, 
+    #     controller, 
+    #     disparity, 
+    #     args.deblur, 
+    #     run_baseline=False, # 1 => run with EmptyControl() first (no prompt conditioning)
+    #     latent=x_t, 
+    #     uncond_embeddings=uncond_embeddings,
+    #     reconstruct_single_image=True,
+    #     verbose=True,
+    #     save_prefix=cond_save_prefix
+    # )
+    # print("saving images...", end="")
+    # save_images([image_gt, image_enc, image_inv[0]], f'{cond_save_prefix}_images_gt-rec-inv.png')
+    # save_images([image_gt, image_enc, image_inv[1]], f'{cond_save_prefix}_images_gt-rec-cond.png')
+    # save_cross_attention([prompts[1]], tokenizer, controller, 16, ["up", "down"], f'{cond_save_prefix}_images_cond_cross-attention.png')
+    # print("done")
+
+    print("testing null-text inversion for stereo image conditioning...")
+    stereo_cond_save_prefix = add_subfolder_to_save_prefix(args, f"conditioning{os.sep}stereo")
+    conditioning_prompt = f"a cat sitting next to a mirror, captured by a stereo camera with baseline distance {prompted_baseline} and focal length {focal_length}"
     print(f"[CONDITIONING_PROMPT] '{conditioning_prompt}'")
     prompts = [
         reconstruction_prompt,
@@ -560,8 +600,8 @@ def run_inv_sd(image, args):
     
     cross_replace_steps = {'default_': .8,}
     self_replace_steps = .5
-    blend_word = ((('cat',), ("tiger",))) # for local edit. If it is not local yet - use only the source object: blend_word = ((('cat',), ("cat",))).
-    eq_params = {"words": ("tiger",), "values": (2,)} # amplify attention to the word "tiger" by *2 
+    blend_word = ((('cat',), ('cat',))) # for local edit. If it is not local yet - use only the source object: blend_word = ((('cat',), ("cat",))).
+    eq_params = {"words": (f"{prompted_baseline}",), "values": (2,)} # amplify attention to the word "tiger" by *2 
 
     controller = make_controller(
         prompts, 
@@ -584,14 +624,14 @@ def run_inv_sd(image, args):
         run_baseline=False, # 1 => run with EmptyControl() first (no prompt conditioning)
         latent=x_t, 
         uncond_embeddings=uncond_embeddings,
-        reconstruct_single_image=True,
+        reconstruct_single_image=False,
         verbose=True,
-        save_prefix=cond_save_prefix
+        save_prefix=stereo_cond_save_prefix
     )
     print("saving images...", end="")
-    save_images([image_gt, image_enc, image_inv[0]], f'{cond_save_prefix}_images_gt-rec-inv.png')
-    save_images([image_gt, image_enc, image_inv[1]], f'{cond_save_prefix}_images_gt-rec-cond.png')
-    save_cross_attention([prompts[1]], tokenizer, controller, 16, ["up", "down"], f'{cond_save_prefix}_images_cond_cross-attention.png')
+    save_images([image_gt, image_enc, image_inv[0]], f'{stereo_cond_save_prefix}_images_gt-rec-inv.png')
+    save_images([image_gt, image_enc, image_inv[1]], f'{stereo_cond_save_prefix}_images_gt-rec-cond.png')
+    save_cross_attention([prompts[1]], tokenizer, controller, 16, ["up", "down"], f'{stereo_cond_save_prefix}_images_cond_cross-attention.png')
     print("done")
 
     image_pair = rearrange(image_inv,'b h w c->h (b w) c')
