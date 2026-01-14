@@ -21,7 +21,7 @@ from torch.optim.adam import Adam
 sys.path.append('..')
 from QwenPromptInterpreter.prompt2float import interpret_prompt
 from misc_util import get_config, create_save_path_from_prefix, add_subfolder_to_save_prefix
-from ptp_save_util import save_images, save_cross_attention
+from ptp_save_util import save_images, save_cross_attention, save_hist_from_array
 
 
 class EmptyControl:
@@ -424,7 +424,7 @@ def get_baseline_and_focal_length(args):
         qpi_config = get_config(path="../QwenPromptInterpreter/cfg/config.json")
         prompted_baseline, focal_length = interpret_prompt(args.baseline_prompt, qpi_config)
         if prompted_baseline == 0.0:
-            print(f"[DEPTHMAP_FROM_PROMPT] baseline can`t be {prompted_baseline}! setting B={1e-8}")
+            print(f"[DEPTHMAP_FROM_PROMPT] baseline can`t be {prompted_baseline}! setting B=1e-8")
             prompted_baseline = 1e-8
 
     # testing depthmap generation from sensor data (blender)
@@ -447,7 +447,14 @@ def get_baseline_and_focal_length(args):
     return prompted_baseline, focal_length
 
 
-def estimate_disparity_from_gt(image_gt, args, prompted_baseline, focal_length, device):
+def estimate_disparity_from_gt(
+        image_gt, 
+        args, 
+        prompted_baseline, 
+        focal_length,
+        device, 
+        verbose=False
+    ):
     net_w = net_h = 384
 
     depthmodel = DPTDepthModel(
@@ -481,14 +488,19 @@ def estimate_disparity_from_gt(image_gt, args, prompted_baseline, focal_length, 
             map = map.cpu().numpy()
             map = np.uint8(map*255)
             disparity_and_depth[i] = map
-        Image.fromarray(disparity_and_depth[0]).save(f'{args.output_prefix}_DPT-depth.png')
-        Image.fromarray(disparity_and_depth[1]).save(f'{args.output_prefix}_DPT-depth-to-disparity_B{prompted_baseline}_f{focal_length}.png')
+        if verbose:
+            Image.fromarray(disparity_and_depth[0]).save(f'{args.output_prefix}_DPT-depth.png')
+            save_hist_from_array(disparity_and_depth[0], f'{args.output_prefix}_DPT-depth_hist.png', title=r"Histogram of $Z_{DPT}$", color_idx=1)
+            Image.fromarray(disparity_and_depth[1]).save(f'{args.output_prefix}_DPT-depth-to-disparity_B{prompted_baseline}_f{focal_length}.png')
+            save_hist_from_array(disparity_and_depth[1], f'{args.output_prefix}_DPT-depth-to-disparity_hist_B{prompted_baseline}_f{focal_length}.png', title=r"Histogram of $D(B_{sensor},f_{sensor},Z_{DPT})$", color_idx=3)
     else:
         map = disparity
         map = rearrange(map, 'c h w -> (c h) w')
         map = map.cpu().numpy()
         map = np.uint8(map*255)
-        Image.fromarray(map).save(f'{args.output_prefix}_DPT-disparity.png')
+        if verbose:
+            Image.fromarray(map).save(f'{args.output_prefix}_DPT-disparity.png')
+            save_hist_from_array(map, f'{args.output_prefix}_DPT-disparity_hist.png', title=r"Histogram of $D_{DPT}$", color_idx=0)
     del depthmodel
 
     return disparity
@@ -501,15 +513,16 @@ def run_inv_sd(image, args):
     prompted_baseline, focal_length = get_baseline_and_focal_length(args)
 
     # TODO define the null-text inversion reconstruction prompt (left empty by StereoDiffusion)
-    # reconstruction_prompt = ""
-    reconstruction_prompt = "a cat sitting next to a mirror"
+    reconstruction_prompt = ""
+    # reconstruction_prompt = "a cat sitting next to a mirror"
     print(f"[RECONSTRUCTION_PROMPT] '{reconstruction_prompt}'")
 
     null_inversion = NullInversion(ldm_stable)
     (image_gt, image_enc), x_t, uncond_embeddings = null_inversion.invert(image, reconstruction_prompt, offsets=(0,0,200,0), verbose=True)
     del null_inversion
 
-    disparity = estimate_disparity_from_gt(image_gt, args, prompted_baseline, focal_length, device)
+    disparity = estimate_disparity_from_gt(image_gt, args, prompted_baseline, focal_length, device, verbose=True)
+    exit()
 
     # print("testing null-text inversion reconstruction...")
     # # rec_save_prefix = add_subfolder_to_save_prefix(args, f"reconstruction{os.sep}left-no-prompt")
@@ -580,7 +593,6 @@ def run_inv_sd(image, args):
     save_images([image_gt, image_enc, image_inv[1]], f'{cond_save_prefix}_images_gt-rec-cond.png')
     save_cross_attention([prompts[1]], tokenizer, controller, 16, ["up", "down"], f'{cond_save_prefix}_images_cond_cross-attention.png')
     print("done")
-    exit()
 
     image_pair = rearrange(image_inv,'b h w c->h (b w) c')
     if args.estimate_only_depth:

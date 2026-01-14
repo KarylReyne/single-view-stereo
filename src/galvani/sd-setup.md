@@ -100,17 +100,3 @@ python main.py \
     --check_val_every_n_epoch 10 \
     --finetune_from models/sd-image-conditioned-v2.ckpt
 ```
-
-
-## stable diffusion finetuning
-<!-- based on https://medium.com/@heyamit10/fine-tuning-stable-diffusion-xl-a-practical-guide-a4b3e579ce9a -->
-### setup
-```
-cd src/galvani/StableDiffusionFinetuning
-```
-### finetune
-<!-- second one at least executes successfully... -->
-```
-python main.py
-python main2.py
-```

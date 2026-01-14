@@ -1,13 +1,16 @@
 import numpy as np
 from PIL import Image
+import matplotlib.pyplot as plt
 import sys
 from typing import List
 sys.path.append('./StereoDiffusion/PromptToPrompt')
 import ptp_utils
 from ptp_null_text import AttentionStore, aggregate_attention
+sys.path.append(".")
+from misc_util import get_next_tue_plot_color
 
 
-# code based on https://github.com/google/prompt-to-prompt
+# code in part based on https://github.com/google/prompt-to-prompt
 
 def save_images(images, path, num_rows=1, offset_ratio=0.02):
     if type(images) is list:
@@ -49,3 +52,23 @@ def save_cross_attention(prompts, tokenizer, attention_store: AttentionStore, re
         image = ptp_utils.text_under_image(image, decoder(int(tokens[i])))
         images.append(image)
     save_images(np.stack(images, axis=0), path)
+
+
+def save_hist_from_array(array, path, title=None, color_idx=0):
+    plt.rcParams['text.usetex'] = True
+
+    steps = np.arange(0, 256, 1)
+    hist, lim = np.histogram(array.flatten(), steps)
+
+    fig, ax = plt.subplots()
+    ax.bar(
+        lim[:-1], 
+        hist, 
+        width=1,
+        color=get_next_tue_plot_color(color_idx),
+        edgecolor="none"
+    )
+    if title is not None:
+        ax.set_title(title)
+    fig.tight_layout()
+    fig.savefig(path)
