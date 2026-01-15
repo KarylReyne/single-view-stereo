@@ -374,15 +374,25 @@ def text2stereoimage_ldm_stable(
                     scale_factor_percent=scale_factor_percent
                 )
                 latents_ts = latents_ts[1:]
+
+                if verbose and (save_prefix != None):
+                    _latents_ts_at_t = ptp_utils.latent2image(model.vae, latents_ts)
+                    save_images(_latents_ts_at_t, f'{save_prefix}_latents-after-shift_at_t={t}.png')
+
                 # latents_np_ = process_pixels_rgba_naive(latents_np[0])
                 # latents_ts =torch.tensor(rearrange(latents_np,'b h w c -> b c h w'),device=device)
                 latents = torch.cat([latents[:1],latents_ts],0)
                 mask = latents_ts[:,0,...] != 0
                 mask = rearrange(mask,'b h w ->b () h w').repeat(1,4,1,1)
-                nosie = torch.randn_like(latents)
-                
+                noise = torch.randn_like(latents)
+
+                if verbose and (save_prefix != None):
+                    _mask = mask
+                    _mask = ptp_utils.latent2image(model.vae, _mask)
+                    save_images(_mask, f'{save_prefix}_denoising-mask.png')
+
                 if deblur: # avoid blurry
-                    latents[1:][~mask] = nosie[1:][~mask]
+                    latents[1:][~mask] = noise[1:][~mask]
                     latents[1:][mask] = latents_ts[mask]
 
             if  (i > 10 and i % 10 == 0):
@@ -392,10 +402,19 @@ def text2stereoimage_ldm_stable(
                     scale_factor_percent=scale_factor_percent
                 )
                 latents_ts = latents_ts[1:]
+
+                if verbose and (save_prefix != None):
+                    _latents_ts_at_t = ptp_utils.latent2image(model.vae, latents_ts)
+                    save_images(_latents_ts_at_t, f'{save_prefix}_latents-after-shift_at_t={t}.png')
+
                 # latents_ts =torch.tensor(rearrange(latents_r_np,'b h w c -> b c h w'),device=device)
                 latents[1:][mask] = latents_ts[mask]
                 # latents[1:][mask] = replacement
                 # import pdb;pdb.set_trace()
+
+                if verbose and (save_prefix != None):
+                    _latents_masked = ptp_utils.latent2image(model.vae, latents)
+                    save_images(_latents_masked, f'{save_prefix}_latents-masked_at_t={t}.png')
         
     if return_type == 'image':
         image = ptp_utils.latent2image(model.vae, latents)
@@ -508,13 +527,18 @@ def run_inv_sd(image, args):
     prompted_baseline, focal_length = get_baseline_and_focal_length(args)
 
     # TODO define the null-text inversion reconstruction prompt (left empty by StereoDiffusion)
-    reconstruction_prompt = ""
+    # reconstruction_prompt = ""
     # reconstruction_prompt = "a cat sitting next to a mirror"
     reconstruction_prompt = f"a cat sitting next to a mirror, captured by a stereo camera with baseline distance 0 and focal length {focal_length}"
     print(f"[RECONSTRUCTION_PROMPT] '{reconstruction_prompt}'")
 
     null_inversion = NullInversion(ldm_stable)
-    (image_gt, image_enc), x_t, uncond_embeddings = null_inversion.invert(image, reconstruction_prompt, offsets=(0,0,200,0), verbose=True)
+    (image_gt, image_enc), x_t, uncond_embeddings = null_inversion.invert(
+        image, 
+        reconstruction_prompt, 
+        offsets=(0,0,200,0), 
+        verbose=True
+    )
     del null_inversion
 
     disparity = estimate_disparity_from_gt(image_gt, args, prompted_baseline, focal_length, device, verbose=True)
