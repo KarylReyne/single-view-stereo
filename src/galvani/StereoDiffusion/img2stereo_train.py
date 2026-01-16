@@ -9,7 +9,7 @@ from typing import Optional, Union, List
 sys.path.append('./StableDiffusion')
 sys.path.append('./DensePredictionTransformer')
 from DensePredictionTransformer.dpt.models import DPTDepthModel
-from stereoutils import stereo_shift_torch, norm_depth
+from stereoutils import stereo_shift_torch, norm_depth, BNAttention, register_attention_editor_diffusers
 sys.path.append('./PromptToPrompt')
 import ptp_utils
 from ptp_null_text import AttentionStore, make_controller
@@ -314,6 +314,7 @@ def text2stereoimage_ldm_stable(
     latent: Optional[torch.FloatTensor] = None,
     uncond_embeddings=None,
     start_time=50,
+    latents_editing_freq=10,
     return_type='image',
     deblur=False,
     reconstruct_single_image=False,
@@ -321,7 +322,8 @@ def text2stereoimage_ldm_stable(
     save_prefix=None
 ):
     batch_size = len(prompts)
-    ptp_utils.register_attention_control(model, controller)
+    # ptp_utils.register_attention_control(model, controller) # Prompt-to-Prompt
+    register_attention_editor_diffusers(model, controller) # StereoDiffusion
     height = width = 512
     
     text_input = model.tokenizer(
@@ -355,34 +357,33 @@ def text2stereoimage_ldm_stable(
             context = torch.cat([uncond_embeddings_, text_embeddings])
         latents = ptp_utils.diffusion_step(model, controller, latents, context, t, guidance_scale, low_resource=LOW_RESOURCE)
         
-        if (i % 5 == 0) and verbose and (save_prefix != None):
+        if (i % latents_editing_freq == 0) and verbose and (save_prefix != None):
             _latents_at_t = ptp_utils.latent2image(model.vae, latents)
             save_images(_latents_at_t, f'{save_prefix}_latents_at_t={t}.png')
         
         # also reconstruct a right-side stereo image (StereoDiffusion)
         if not reconstruct_single_image:
-            if i == 10:
+
+            if i == latents_editing_freq:
                 if isinstance(disparity,torch.Tensor):
                     disparity = torch.nn.functional.interpolate(disparity.unsqueeze(1),size=[64,64],mode="bicubic",align_corners=False,).squeeze(1)
                 elif isinstance(disparity,np.ndarray):
                     disparity = resize(disparity,(64,64))
-                # latents = stereo_shift_torch(latents[:1],disparity,stereo_balance=-1)
+                
                 scale_factor_percent = 8
-                latents_ts = stereo_shift_torch(
-                    latents[:1], 
+                latents_current = stereo_shift_torch(
+                    latents[:1], # left latent
                     disparity, 
                     scale_factor_percent=scale_factor_percent
                 )
-                latents_ts = latents_ts[1:]
+                latents_current = latents_current[1:] # latents_current <- right latent
+                latents = torch.cat([latents[:1], latents_current], 0) # [left latent, left latent shifted (right latent)]
 
                 if verbose and (save_prefix != None):
-                    _latents_ts_at_t = ptp_utils.latent2image(model.vae, latents_ts)
-                    save_images(_latents_ts_at_t, f'{save_prefix}_latents-after-shift_at_t={t}.png')
+                    _latents_at_t = ptp_utils.latent2image(model.vae, latents)
+                    save_images(_latents_at_t, f'{save_prefix}_latents-after-shift_at_t={t}.png')
 
-                # latents_np_ = process_pixels_rgba_naive(latents_np[0])
-                # latents_ts =torch.tensor(rearrange(latents_np,'b h w c -> b c h w'),device=device)
-                latents = torch.cat([latents[:1],latents_ts],0)
-                mask = latents_ts[:,0,...] != 0
+                mask = latents_current[:,0,...] != 0
                 mask = rearrange(mask,'b h w ->b () h w').repeat(1,4,1,1)
                 noise = torch.randn_like(latents)
 
@@ -393,28 +394,22 @@ def text2stereoimage_ldm_stable(
 
                 if deblur: # avoid blurry
                     latents[1:][~mask] = noise[1:][~mask]
-                    latents[1:][mask] = latents_ts[mask]
+                    latents[1:][mask] = latents_current[mask]
 
-            if  (i > 10 and i % 10 == 0):
-                latents_ts= stereo_shift_torch(
-                    latents[:1], 
+            if  (i > latents_editing_freq and i % latents_editing_freq == 0):
+                latents_current = stereo_shift_torch(
+                    latents[:1], # left latent
                     disparity, 
                     scale_factor_percent=scale_factor_percent
                 )
-                latents_ts = latents_ts[1:]
-
-                if verbose and (save_prefix != None):
-                    _latents_ts_at_t = ptp_utils.latent2image(model.vae, latents_ts)
-                    save_images(_latents_ts_at_t, f'{save_prefix}_latents-after-shift_at_t={t}.png')
-
-                # latents_ts =torch.tensor(rearrange(latents_r_np,'b h w c -> b c h w'),device=device)
-                latents[1:][mask] = latents_ts[mask]
-                # latents[1:][mask] = replacement
-                # import pdb;pdb.set_trace()
-
+                latents_current = latents_current[1:] # latents_current <- right latent
+                latents[1:][mask] = latents_current[mask] # prev right latent * mask <- curr right latent * mask
+                
                 if verbose and (save_prefix != None):
                     _latents_masked = ptp_utils.latent2image(model.vae, latents)
-                    save_images(_latents_masked, f'{save_prefix}_latents-masked_at_t={t}.png')
+                    save_images(_latents_masked, f'{save_prefix}_latents-with-applied-mask_at_t={t}.png')
+
+            
         
     if return_type == 'image':
         image = ptp_utils.latent2image(model.vae, latents)
@@ -614,7 +609,7 @@ def run_inv_sd(image, args):
     # print("done")
 
     print("testing null-text inversion for stereo image conditioning...")
-    stereo_cond_save_prefix = add_subfolder_to_save_prefix(args, f"conditioning{os.sep}stereo")
+    stereo_cond_save_prefix = add_subfolder_to_save_prefix(args, f"conditioning{os.sep}stereo-bnattention")
     conditioning_prompt = f"a cat sitting next to a mirror, captured by a stereo camera with baseline distance {prompted_baseline} and focal length {focal_length}"
     print(f"[CONDITIONING_PROMPT] '{conditioning_prompt}'")
     prompts = [
@@ -627,18 +622,19 @@ def run_inv_sd(image, args):
     blend_word = ((('cat',), ('cat',))) # for local edit. If it is not local yet - use only the source object: blend_word = ((('cat',), ("cat",))).
     eq_params = {"words": (f"{prompted_baseline}",), "values": (2,)} # amplify attention to the word "tiger" by *2 
 
-    controller = make_controller(
-        prompts, 
-        True, 
-        cross_replace_steps, 
-        self_replace_steps, 
-        tokenizer, 
-        device, 
-        MAX_NUM_WORDS, 
-        NUM_DDIM_STEPS, 
-        blend_word, 
-        eq_params
-    )
+    # controller = make_controller(
+    #     prompts, 
+    #     True, 
+    #     cross_replace_steps, 
+    #     self_replace_steps, 
+    #     tokenizer, 
+    #     device, 
+    #     MAX_NUM_WORDS, 
+    #     NUM_DDIM_STEPS, 
+    #     blend_word, 
+    #     eq_params
+    # )
+    controller = BNAttention(start_step=4, total_steps=50, direction=args.direction)
     image_inv, latent = run_and_display(
         ldm_stable,
         prompts, 

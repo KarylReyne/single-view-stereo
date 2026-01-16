@@ -11,6 +11,8 @@ from torchvision.utils import save_image
 import sys
 sys.path.append('./StableDiffusion')
 from StableDiffusion.ldm.models.diffusion.ddim import DDIMSampler
+sys.path.append('./PromptToPrompt')
+from PromptToPrompt.ptp_null_text import AttentionStore
 
 
 def norm_depth(depth, max_val=1):
@@ -58,9 +60,9 @@ def stereo_shift_torch(input_images, depthmaps, scale_factor_percent=8, shift_bo
 
 
 
-class BNAttention():
-    def __init__(self, start_step=4, total_steps=50, direction='uni'):
-
+class BNAttention(AttentionStore):
+    def __init__(self, start_step=4, total_steps=50, direction='uni', low_resource=False):
+        super().__init__(low_resource=low_resource)
         self.total_steps = total_steps
         self.start_step = start_step
         self.cur_step = 0
@@ -85,31 +87,41 @@ class BNAttention():
         if is_cross or (self.cur_step < self.start_step):
             out = torch.einsum('b i j, b j d -> b i d', attn, v)
             out = rearrange(out, '(b h) n d -> b n (h d)', h=num_heads)
-            return out
+            
+        else:
+            n_samples =attn.shape[0]//num_heads // 4
+            qu, qc = q.chunk(2)
+            ku, kc = k.chunk(2)
+            vu, vc = v.chunk(2)
+            attnu, attnc = attn.chunk(2)
+            _num_heads = num_heads * n_samples
+            if self.direction == 'bi':
+                out_u = self.attn_batch(qu, ku, vu, sim, attnu, is_cross, place_in_unet, num_heads, **kwargs)
+                out_c = self.attn_batch(qc, kc, vc, sim, attnc, is_cross, place_in_unet, num_heads, **kwargs)
+            elif self.direction == 'uni':
+                out_u = self.attn_batch(qu, ku[:_num_heads], vu[:_num_heads], sim[:_num_heads], attnu, is_cross, place_in_unet, num_heads, **kwargs)
+                out_c = self.attn_batch(qc, kc[:_num_heads], vc[:_num_heads], sim[:_num_heads], attnc, is_cross, place_in_unet, num_heads, **kwargs)
+            out = torch.cat([out_u, out_c], dim=0)
+
+        # additional: store attn scores (Prompt-to-Prompt's forward, for visualization)
+        key = f"{place_in_unet}_{'cross' if is_cross else 'self'}"
+        if out.shape[1] <= 32 ** 2:  # avoid memory overhead
+            self.step_store[key].append(out)
         
-        n_samples =attn.shape[0]//num_heads // 4
-        qu, qc = q.chunk(2)
-        ku, kc = k.chunk(2)
-        vu, vc = v.chunk(2)
-        attnu, attnc = attn.chunk(2)
-        _num_heads = num_heads * n_samples
-        if self.direction == 'bi':
-            out_u = self.attn_batch(qu, ku, vu, sim, attnu, is_cross, place_in_unet, num_heads, **kwargs)
-            out_c = self.attn_batch(qc, kc, vc, sim, attnc, is_cross, place_in_unet, num_heads, **kwargs)
-        elif self.direction == 'uni':
-            out_u = self.attn_batch(qu, ku[:_num_heads], vu[:_num_heads], sim[:_num_heads], attnu, is_cross, place_in_unet, num_heads, **kwargs)
-            out_c = self.attn_batch(qc, kc[:_num_heads], vc[:_num_heads], sim[:_num_heads], attnc, is_cross, place_in_unet, num_heads, **kwargs)
-        out = torch.cat([out_u, out_c], dim=0)
         return out
 
     def __call__(self, q, k, v, sim, attn, is_cross, place_in_unet, num_heads, **kwargs):
         out = self.forward(q, k, v, sim, attn, is_cross, place_in_unet, num_heads, **kwargs)
         self.cur_att_layer += 1
         self.cur_step = self.cur_att_layer//32
+
+        # update attention store for visualization
+        if self.cur_att_layer == self.num_att_layers + self.num_uncond_att_layers:
+            self.between_steps()
         return out
 
 
-def regiter_attention_editor_diffusers(model, editor):
+def register_attention_editor_diffusers(model, editor):
     """
     refer from [Prompt-to-Prompt]
     """
