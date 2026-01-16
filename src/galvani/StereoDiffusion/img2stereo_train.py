@@ -412,7 +412,6 @@ def text2stereoimage_ldm_stable(
                     _latents_masked = ptp_utils.latent2image(model.vae, latents)
                     save_images(_latents_masked, f'{save_prefix}_latents-with-applied-mask_at_t={t}.png')
 
-            
         
     if return_type == 'image':
         image = ptp_utils.latent2image(model.vae, latents)
@@ -527,7 +526,8 @@ def run_inv_sd(image, args):
     # TODO define the null-text inversion reconstruction prompt (left empty by StereoDiffusion)
     # reconstruction_prompt = ""
     # reconstruction_prompt = "a cat sitting next to a mirror"
-    reconstruction_prompt = f"a cat sitting next to a mirror, captured by a stereo camera with baseline distance 0 and focal length {focal_length}"
+    # reconstruction_prompt = f"a cat sitting next to a mirror, captured by a stereo camera with baseline distance 0 and focal length {focal_length}"
+    reconstruction_prompt = f"a sports car in a museum, captured by a stereo camera with baseline distance 0 and focal length {focal_length}"
     print(f"[RECONSTRUCTION_PROMPT] '{reconstruction_prompt}'")
 
     null_inversion = NullInversion(ldm_stable)
@@ -612,14 +612,16 @@ def run_inv_sd(image, args):
     # print("done")
 
     print("testing null-text inversion for stereo image conditioning...")
-    USE_NORMAL_ATTENTION = False
-    conditioning_prompt = f"a cat sitting next to a mirror, captured by a stereo camera with baseline distance {prompted_baseline} and focal length {focal_length}"
+    USE_NORMAL_ATTENTION = False # 0 => StereoDiffusion's uni-attention
+    # conditioning_prompt = f"a cat sitting next to a mirror, captured by a stereo camera with baseline distance {prompted_baseline} and focal length {focal_length}"
+    conditioning_prompt = f"a sports car in a museum, captured by a stereo camera with baseline distance {prompted_baseline} and focal length {focal_length}"
     print(f"[CONDITIONING_PROMPT] '{conditioning_prompt}'")
     prompts = [
         reconstruction_prompt,
         conditioning_prompt
     ]
     if USE_NORMAL_ATTENTION:
+        raise NotImplementedError # for the car
         stereo_cond_save_prefix = add_subfolder_to_save_prefix(args, f"conditioning{os.sep}stereo-attention")
         cross_replace_steps = {'default_': .8,}
         self_replace_steps = .5
@@ -635,11 +637,17 @@ def run_inv_sd(image, args):
             device, 
             MAX_NUM_WORDS, 
             NUM_DDIM_STEPS, 
-            blend_word, 
+            blend_word,
             eq_params
         )
     else:
         stereo_cond_save_prefix = add_subfolder_to_save_prefix(args, f"conditioning{os.sep}stereo-bnattention")
+        if args.deblur: 
+            split = stereo_cond_save_prefix.split(os.sep) 
+            _new_path = split[:-1]
+            _new_path.append("deblurred")
+            _new_path.append(split[-1])
+            stereo_cond_save_prefix = os.sep.join(_new_path)
         controller = BNAttention(start_step=4, total_steps=50, direction=args.direction)
 
     image_inv, latent = run_and_display(
