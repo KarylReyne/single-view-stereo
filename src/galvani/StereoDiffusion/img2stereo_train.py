@@ -321,9 +321,12 @@ def text2stereoimage_ldm_stable(
     verbose=False,
     save_prefix=None
 ):
+    if controller.__class__.__name__ == "BNAttention":
+        register_attention_editor_diffusers(model, controller) # StereoDiffusion
+    else:
+        ptp_utils.register_attention_control(model, controller) # Prompt-to-Prompt
+
     batch_size = len(prompts)
-    # ptp_utils.register_attention_control(model, controller) # Prompt-to-Prompt
-    register_attention_editor_diffusers(model, controller) # StereoDiffusion
     height = width = 512
     
     text_input = model.tokenizer(
@@ -609,32 +612,36 @@ def run_inv_sd(image, args):
     # print("done")
 
     print("testing null-text inversion for stereo image conditioning...")
-    stereo_cond_save_prefix = add_subfolder_to_save_prefix(args, f"conditioning{os.sep}stereo-bnattention")
+    USE_NORMAL_ATTENTION = False
     conditioning_prompt = f"a cat sitting next to a mirror, captured by a stereo camera with baseline distance {prompted_baseline} and focal length {focal_length}"
     print(f"[CONDITIONING_PROMPT] '{conditioning_prompt}'")
     prompts = [
         reconstruction_prompt,
         conditioning_prompt
     ]
-    
-    cross_replace_steps = {'default_': .8,}
-    self_replace_steps = .5
-    blend_word = ((('cat',), ('cat',))) # for local edit. If it is not local yet - use only the source object: blend_word = ((('cat',), ("cat",))).
-    eq_params = {"words": (f"{prompted_baseline}",), "values": (2,)} # amplify attention to the word "tiger" by *2 
+    if USE_NORMAL_ATTENTION:
+        stereo_cond_save_prefix = add_subfolder_to_save_prefix(args, f"conditioning{os.sep}stereo-attention")
+        cross_replace_steps = {'default_': .8,}
+        self_replace_steps = .5
+        blend_word = ((('cat',), ('cat',))) # for local edit. If it is not local yet - use only the source object: blend_word = ((('cat',), ("cat",))).
+        eq_params = {"words": (f"{prompted_baseline}",), "values": (2,)} # amplify attention to the word "tiger" by *2 
 
-    # controller = make_controller(
-    #     prompts, 
-    #     True, 
-    #     cross_replace_steps, 
-    #     self_replace_steps, 
-    #     tokenizer, 
-    #     device, 
-    #     MAX_NUM_WORDS, 
-    #     NUM_DDIM_STEPS, 
-    #     blend_word, 
-    #     eq_params
-    # )
-    controller = BNAttention(start_step=4, total_steps=50, direction=args.direction)
+        controller = make_controller(
+            prompts, 
+            True, 
+            cross_replace_steps, 
+            self_replace_steps, 
+            tokenizer, 
+            device, 
+            MAX_NUM_WORDS, 
+            NUM_DDIM_STEPS, 
+            blend_word, 
+            eq_params
+        )
+    else:
+        stereo_cond_save_prefix = add_subfolder_to_save_prefix(args, f"conditioning{os.sep}stereo-bnattention")
+        controller = BNAttention(start_step=4, total_steps=50, direction=args.direction)
+
     image_inv, latent = run_and_display(
         ldm_stable,
         prompts, 

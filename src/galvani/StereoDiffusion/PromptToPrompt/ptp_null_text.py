@@ -271,10 +271,6 @@ def get_equalizer(text: str, tokenizer, word_select: Union[int, Tuple[int, ...]]
     return equalizer
 
 def aggregate_attention(attention_store: AttentionStore, res: int, from_where: List[str], is_cross: bool, select: int, prompts: List[str]):
-    """
-    :param from_where: x in [up, mid, down, ...]
-    :type from_where: List[str]
-    """
     out = []
     attention_maps = attention_store.get_average_attention()
     num_pixels = res ** 2
