@@ -63,6 +63,8 @@ python3 img2stereo.py --depthmodel_path=midas_models/dpt_hybrid-midas-501f0c75.p
 
 <!--
 python3 img2stereo_train.py --depthmodel_path=midas_models/dpt_hybrid-midas-501f0c75.pt  --img_path="../../../resources/cat_left_gt.png" --output_prefix="../../../resources/stereodiffusion/TRAIN-TEST_cat" --baseline_prompt="set B to 0.12 and f to 39.1"
+
+python3 img2stereo_train.py --depthmodel_path=midas_models/dpt_hybrid-midas-501f0c75.pt  --img_path="../../../resources/car_left.jpg" --output_prefix="../../../resources/stereodiffusion/TRAIN-TEST_car" --meta_path="../../../resources/car_meta.json" --deblur
 -->
 
 
