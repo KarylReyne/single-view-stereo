@@ -612,42 +612,49 @@ def run_inv_sd(image, args):
     # print("done")
 
     print("testing null-text inversion for stereo image conditioning...")
-    USE_NORMAL_ATTENTION = False # 0 => StereoDiffusion's uni-attention
     # conditioning_prompt = f"a cat sitting next to a mirror, captured by a stereo camera with baseline distance {prompted_baseline} and focal length {focal_length}"
     conditioning_prompt = f"a sports car in a museum, captured by a stereo camera with baseline distance {prompted_baseline} and focal length {focal_length}"
-    print(f"[CONDITIONING_PROMPT] '{conditioning_prompt}'")
     prompts = [
         reconstruction_prompt,
         conditioning_prompt
     ]
-    if USE_NORMAL_ATTENTION:
-        raise NotImplementedError # for the car
-        stereo_cond_save_prefix = add_subfolder_to_save_prefix(args, f"conditioning{os.sep}stereo-attention")
-        cross_replace_steps = {'default_': .8,}
-        self_replace_steps = .5
-        blend_word = ((('cat',), ('cat',))) # for local edit. If it is not local yet - use only the source object: blend_word = ((('cat',), ("cat",))).
-        eq_params = {"words": (f"{prompted_baseline}",), "values": (2,)} # amplify attention to the word "tiger" by *2 
+    print(f"[CONDITIONING_PROMPT] '{conditioning_prompt}'")
 
-        controller = make_controller(
-            prompts, 
-            True, 
-            cross_replace_steps, 
-            self_replace_steps, 
-            tokenizer, 
-            device, 
-            MAX_NUM_WORDS, 
-            NUM_DDIM_STEPS, 
-            blend_word,
-            eq_params
-        )
+    USE_NORMAL_ATTENTION = True # 0 => StereoDiffusion's uni-attention
+    print(f"[USE_NORMAL_ATTENTION] '{USE_NORMAL_ATTENTION}'")
+
+    if USE_NORMAL_ATTENTION:
+        # attention editing for cat
+        # stereo_cond_save_prefix = add_subfolder_to_save_prefix(args, f"conditioning{os.sep}stereo-attention")
+        # cross_replace_steps = {'default_': .8,}
+        # self_replace_steps = .5
+        # blend_word = ((('cat',), ('cat',))) # for local edit. If it is not local yet - use only the source object: blend_word = ((('cat',), ("cat",))).
+        # eq_params = {"words": (f"{prompted_baseline}",), "values": (2,)} # amplify attention to the word "tiger" by *2 
+
+        # controller = make_controller(
+        #     prompts, 
+        #     True, 
+        #     cross_replace_steps, 
+        #     self_replace_steps, 
+        #     tokenizer, 
+        #     device, 
+        #     MAX_NUM_WORDS, 
+        #     NUM_DDIM_STEPS, 
+        #     blend_word,
+        #     eq_params
+        # )
+        folders = f"conditioning{os.sep}stereo-attention"
+        if args.deblur:
+            folders += f"{os.sep}deblurred"
+        stereo_cond_save_prefix = add_subfolder_to_save_prefix(args, folders)
+
+        controller = AttentionStore(low_resource=LOW_RESOURCE)
     else:
-        stereo_cond_save_prefix = add_subfolder_to_save_prefix(args, f"conditioning{os.sep}stereo-bnattention")
-        if args.deblur: 
-            split = stereo_cond_save_prefix.split(os.sep) 
-            _new_path = split[:-1]
-            _new_path.append("deblurred")
-            _new_path.append(split[-1])
-            stereo_cond_save_prefix = os.sep.join(_new_path)
+        folders = f"conditioning{os.sep}stereo-bnattention"
+        if args.deblur:
+            folders += f"{os.sep}deblurred"
+        stereo_cond_save_prefix = add_subfolder_to_save_prefix(args, folders)
+
         controller = BNAttention(start_step=4, total_steps=50, direction=args.direction)
 
     image_inv, latent = run_and_display(
