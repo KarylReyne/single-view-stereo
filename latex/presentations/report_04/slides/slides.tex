@@ -148,6 +148,50 @@
         \end{column}
     \end{columns}
 \end{frame}
+\begin{frame}{Evaluation}
+    \textbf{Goal:} Evaluate the quality of generated views by comparison with ground truth.
+
+    \bigskip
+    \textbf{Datasets}
+    \begin{itemize}
+        \item Ground truth stereo dataset
+        \item Generated stereo dataset
+    \end{itemize}
+    Each scene contains a left view, right view, and disparity map
+
+    \bigskip
+    \textbf{Evaluation Setup}
+    \begin{itemize}
+        \item Left view used as reference input
+        \item Generated right/left view compared to ground truth right/left
+        \item Images aligned and resized to a common resolution
+        \item Comparison against DPT and StereoDiffusion disparity maps
+    \end{itemize}
+
+    \bigskip
+    \textbf{Outcome}
+    \begin{itemize}
+        \item Quantitative and perceptual quality assessment
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Evaluation Metrics}
+    Metrics are computed per scene and then aggregated over the dataset (mean and std)
+    
+    \bigskip
+    \begin{itemize}
+        \item \textbf{PSNR (Peak Signal-to-Noise Ratio):} 
+        Measures pixel-wise absolute intensity differences.
+        
+        \item \textbf{SSIM (Structural Similarity Index):} 
+        Compares contrast and structure; checks if shapes and edges are consistent.
+        
+        \item \textbf{LPIPS (Learned Perceptual Image Patch Similarity):} 
+        Uses a pretrained neural network to evaluate perceptual similarity and visual realism.
+    \end{itemize}
+    
+    
+\end{frame}
 
 \begin{frame}{Preliminary Goals for the Evaluation}
     Evaluate StereoDiffusion with different alterations:
