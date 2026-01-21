@@ -27,9 +27,9 @@ def create_save_path_from_prefix(prefix):
     os.makedirs(save_path, exist_ok=True)
 
 
-def add_subfolder_to_save_prefix(args, subfolder):
-    _file_prefix = args.output_prefix.split(os.sep)[-1]
-    _path_parts = args.output_prefix.split(os.sep)[:-1]
+def add_subfolder_to_save_prefix(config, subfolder):
+    _file_prefix = config["output_prefix"].split(os.sep)[-1]
+    _path_parts = config["output_prefix"].split(os.sep)[:-1]
     [_path_parts.append(f) for f in subfolder.split(os.sep)]
     _path_parts.append(_file_prefix)
     new_save_prefix = os.sep.join(_path_parts)

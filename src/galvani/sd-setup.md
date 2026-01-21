@@ -48,10 +48,10 @@ sh download_model.sh
 python img2stereo.py --depthmodel_path=midas_models/dpt_hybrid-midas-501f0c75.pt --img_path="../../../data/galvani/fixed_baselines/000/000_left.png" --meta_path="../../../data/galvani/fixed_baselines/000/000_meta.json" --output_prefix="outputs/img2stereo/fixed_baselines-000/out" --baseline_prompt="set B to 0.05 and f to 40.2"
 ```
 ##### complex objects
-
 ```
 python img2stereo.py --depthmodel_path=midas_models/dpt_hybrid-midas-501f0c75.pt  --img_path="../../../data/galvani/image_collection/Dino/Camera_011/left.jpg" --output_prefix="outputs/img2stereo/Dino-Camera_011/out" --baseline_prompt="set B to 0.05 and f to 40.2"
 ```
+
 
 <!-- 
 python3 img2stereo.py --depthmodel_path=midas_models/dpt_hybrid-midas-501f0c75.pt  --img_path="../../../resources/cat_left_gt.png" --output_prefix="../../../resources/stereodiffusion/cat" --baseline_prompt="set B to 0.12 and f to 39.1" --estimate_only_depth
@@ -59,7 +59,7 @@ python3 img2stereo.py --depthmodel_path=midas_models/dpt_hybrid-midas-501f0c75.p
 python3 img2stereo.py --depthmodel_path=midas_models/dpt_hybrid-midas-501f0c75.pt  --img_path="../../../resources/mona_lisa_left_gt.png" --output_prefix="../../../resources/stereodiffusion/mona_lisa" --baseline_prompt="set B to 0.12 and f to 39.1" --estimate_only_depth
 
 python3 img2stereo.py --depthmodel_path=midas_models/dpt_hybrid-midas-501f0c75.pt  --img_path="../../../resources/car_left.jpg" --output_prefix="../../../resources/stereodiffusion/car" --meta_path="../../../resources/car_meta.json" --estimate_only_depth 
--->
+--> 
 
 <!--
 python3 img2stereo_train.py --depthmodel_path=midas_models/dpt_hybrid-midas-501f0c75.pt  --img_path="../../../resources/cat_left_gt.png" --output_prefix="../../../resources/stereodiffusion/TRAIN-TEST_cat" --baseline_prompt="set B to 0.12 and f to 39.1"
