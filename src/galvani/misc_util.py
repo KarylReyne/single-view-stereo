@@ -19,19 +19,9 @@ def get_config(path='cfg/config.json'):
     return config
 
 
-def create_save_path_from_prefix(prefix):
-    """
-    given path/to/prefix_, creates path/to/ if it does not already exist 
-    """
-    save_path = "/".join(prefix.split("/")[:-1])
-    os.makedirs(save_path, exist_ok=True)
-
-
-def add_subfolder_to_save_prefix(config, subfolder):
-    _file_prefix = config["output_prefix"].split(os.sep)[-1]
-    _path_parts = config["output_prefix"].split(os.sep)[:-1]
+def add_subfolder_to_save_prefix(inf_config, subfolder):
+    _path_parts = inf_config["output_prefix"].split(os.sep)
     [_path_parts.append(f) for f in subfolder.split(os.sep)]
-    _path_parts.append(_file_prefix)
     new_save_prefix = os.sep.join(_path_parts)
-    create_save_path_from_prefix(new_save_prefix)
+    os.makedirs(new_save_prefix, exist_ok=True)
     return new_save_prefix
