@@ -19,6 +19,12 @@ def get_config(path='cfg/config.json'):
     return config
 
 
+def save_config(config, path):
+    with open(path, "w", encoding='utf-8') as f:
+        json.dump(config, f, ensure_ascii=False, indent=4)
+
+
+
 def add_subfolder_to_save_prefix(inf_config, subfolder):
     _path_parts = inf_config["output_prefix"].split(os.sep)
     [_path_parts.append(f) for f in subfolder.split(os.sep)]

@@ -19,7 +19,7 @@ from ptp_null_text import AttentionStore, make_controller
 
 sys.path.append('..')
 from QwenPromptInterpreter.prompt2float import interpret_prompt
-from misc_util import get_config, add_subfolder_to_save_prefix
+from misc_util import get_config, add_subfolder_to_save_prefix, save_config
 from ptp_save_util import save_images, save_cross_attention, save_hist_from_array, save_generated_stereoimages
 from stereodiffusion_nti import EmptyControl, NullInversion
 
@@ -396,4 +396,10 @@ if __name__ == "__main__":
         inf_config,
         verbose=verbose
     )
+
+    # save configs
+    cfg_save_path = f"{inf_config['output_prefix']}cfg{os.sep}"
+    os.makedirs(cfg_save_path, exist_ok=True)
+    for t in [(inf_config, "inference_config.json"), (qpi_config, "qwen_config.json")]:
+        save_config(t[0], f"{cfg_save_path}{t[1]}")
 
