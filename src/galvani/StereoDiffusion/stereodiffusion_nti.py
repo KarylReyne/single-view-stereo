@@ -4,12 +4,16 @@ from PIL import Image
 from tqdm import tqdm
 import sys
 from typing import Union
-sys.path.append('./PromptToPrompt')
-import ptp_utils
 from skimage.transform import resize
 from diffusers import DDIMScheduler
 import torch.nn.functional as nnf
 from torch.optim.adam import Adam
+
+sys.path.append('./PromptToPrompt')
+import ptp_utils
+
+sys.path.append('./DensePredictionTransformer')
+from stereoutils import load_512
 
 
 class EmptyControl:
@@ -53,7 +57,7 @@ class NullInversion:
         latents_input = torch.cat([latents] * 2)
         if context is None:
             context = self.context
-        guidance_scale = 1 if is_forward else GUIDANCE_SCALE
+        guidance_scale = 1 if is_forward else self.config["guidance_scale"]
         noise_pred = self.model.unet(latents_input, t, encoder_hidden_states=context)["sample"]
         noise_pred_uncond, noise_prediction_text = noise_pred.chunk(2)
         noise_pred = noise_pred_uncond + guidance_scale * (noise_prediction_text - noise_pred_uncond)
@@ -82,7 +86,7 @@ class NullInversion:
                 latents = image
             else:
                 image = torch.from_numpy(image).float() / 127.5 - 1
-                image = image.permute(2, 0, 1).unsqueeze(0).to(device)
+                image = image.permute(2, 0, 1).unsqueeze(0).to(self.config["device"])
                 latents = self.model.vae.encode(image)['latent_dist'].mean
                 latents = latents * 0.18215
         return latents
@@ -110,7 +114,7 @@ class NullInversion:
         uncond_embeddings, cond_embeddings = self.context.chunk(2)
         all_latent = [latent]
         latent = latent.clone().detach()
-        for i in range(NUM_DDIM_STEPS):
+        for i in range(self.config["num_ddim_steps"]):
             t = self.model.scheduler.timesteps[len(self.model.scheduler.timesteps) - i - 1]
             noise_pred = self.get_noise_pred_single(latent, t, cond_embeddings)
             latent = self.next_step(noise_pred, t, latent)
@@ -133,7 +137,7 @@ class NullInversion:
         uncond_embeddings_list = []
         latent_cur = latents[-1]
         # bar = tqdm(total=num_inner_steps * NUM_DDIM_STEPS)
-        for i in tqdm(range(NUM_DDIM_STEPS)):
+        for i in tqdm(range(self.config["num_ddim_steps"])):
             uncond_embeddings = uncond_embeddings.clone().detach()
             uncond_embeddings.requires_grad = True
             optimizer = Adam([uncond_embeddings], lr=1e-2 * (1. - i / 100.))
@@ -143,7 +147,7 @@ class NullInversion:
                 noise_pred_cond = self.get_noise_pred_single(latent_cur, t, cond_embeddings)
             for j in range(num_inner_steps):
                 noise_pred_uncond = self.get_noise_pred_single(latent_cur, t, uncond_embeddings)
-                noise_pred = noise_pred_uncond + GUIDANCE_SCALE * (noise_pred_cond - noise_pred_uncond)
+                noise_pred = noise_pred_uncond + self.config["guidance_scale"] * (noise_pred_cond - noise_pred_uncond)
                 latents_prev_rec = self.prev_step(noise_pred, t, latent_cur)
                 loss = nnf.mse_loss(latents_prev_rec, latent_prev)
                 optimizer.zero_grad()
@@ -182,11 +186,12 @@ class NullInversion:
         return (image_gt, image_rec), ddim_latents[-1], uncond_embeddings
         
     
-    def __init__(self, model):
+    def __init__(self, model, config):
         scheduler = DDIMScheduler(beta_start=0.00085, beta_end=0.012, beta_schedule="scaled_linear", clip_sample=False,
                                   set_alpha_to_one=False)
         self.model = model
         self.tokenizer = self.model.tokenizer
-        self.model.scheduler.set_timesteps(NUM_DDIM_STEPS)
+        self.config = config
+        self.model.scheduler.set_timesteps(self.config["num_ddim_steps"])
         self.prompt = None
         self.context = None

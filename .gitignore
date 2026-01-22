@@ -15,6 +15,7 @@ src/galvani/StereoDiffusion/midas_models/dpt_hybrid-midas-501f0c75.pt
 src/galvani/StereoDiffusion/models/512-depth-ema.ckpt
 src/galvani/StereoDiffusion/models/v2-1_768-ema-pruned.ckpt
 src/galvani/StereoDiffusion/models/qwen2.5_7b_instruct
+src/galvani/StereoDiffusion/models/stablediffusion1.4
 src/galvani/zero_123/zero123/models/sd-image-conditioned-v2.ckpt
 src/galvani/zero_123/zero123/view_release/valid_paths.json
 src/galvani/zero_123/zero123/view_release/__MACOSX/._valid_paths.json
@@ -22,6 +23,11 @@ src/galvani/zero_123/zero123/view_release/__MACOSX/._valid_paths.json
 # output
 src/galvani/StereoDiffusion/outputs/*
 src/galvani/StableDiffusionFinetuning/out/*
+out/**
+!out/example_silent
+!out/example_silent/**/*
+!out/example_verbose
+!out/example_verbose/**/*
 
 # latex
 latex/**/*.aux

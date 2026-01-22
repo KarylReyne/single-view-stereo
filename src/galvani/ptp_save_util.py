@@ -38,6 +38,14 @@ def save_images(images, path, num_rows=1, offset_ratio=0.02):
     Image.fromarray(image_).save(path)
 
 
+def save_generated_stereoimages(images, output_prefix):
+    images = [image.astype(np.uint8) for image in images]
+    paths = [f"{output_prefix}{s}_gen.png" for s in ["left", "right"]]
+
+    for i in range(len(images)):
+        Image.fromarray(images[i]).save(paths[i])
+
+
 def save_cross_attention(prompts, tokenizer, attention_store: AttentionStore, res: int, from_where: List[str], path: str, select: int = 0):
     tokens = tokenizer.encode(prompts[select])
     decoder = tokenizer.decode

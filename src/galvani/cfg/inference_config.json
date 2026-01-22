@@ -10,7 +10,7 @@
     "stereodiffusion_attn_steps_total": 50,
     "stereodiffusion_attn_direction": "uni",
     "device": "cuda:0",
-    "stablediffusion_model": "CompVis/stable-diffusion-v1-4",
+    "stablediffusion_model": "models/stablediffusion1.4",
     "guidance_scale": 7.5,
     "num_ddim_steps": 50,
     "max_num_words": 77,

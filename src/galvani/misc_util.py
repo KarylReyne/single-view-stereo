@@ -24,4 +24,4 @@ def add_subfolder_to_save_prefix(inf_config, subfolder):
     [_path_parts.append(f) for f in subfolder.split(os.sep)]
     new_save_prefix = os.sep.join(_path_parts)
     os.makedirs(new_save_prefix, exist_ok=True)
-    return new_save_prefix
+    return f"{new_save_prefix}{os.sep}"
