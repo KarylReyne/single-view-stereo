@@ -1,6 +1,6 @@
 {
     "depthmodel_path": "midas_models/dpt_hybrid-midas-501f0c75.pt",
-    "output_prefix": "../../../out/",
+    "output_prefix": "../../../out/image_collection/",
     "depthmap_from_prompt": false,
     "depthmap_from_sensor": true,
     "use_depth-to-disparity": false,

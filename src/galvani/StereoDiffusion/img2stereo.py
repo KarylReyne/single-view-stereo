@@ -182,7 +182,7 @@ def text2stereoimage_ldm_stable(
     return image, latent
 
 
-def get_baseline_and_focal_length(img_path, baseline_prompt, inf_config, qpi_config, verbose=False):
+def get_baseline_and_focal_length(img_path, inf_config, qpi_config, baseline_prompt=None, metadata=None, verbose=False):
     # custom baseline distance and focal length
     prompted_baseline = None
     focal_length = None
@@ -199,13 +199,14 @@ def get_baseline_and_focal_length(img_path, baseline_prompt, inf_config, qpi_con
     # testing depthmap generation from sensor data (blender)
     if inf_config["depthmap_from_sensor"]:
         # import metadata file
-        try:
-            metadata_path = img_path.split("/")[:-1]
-            metadata_path.append("meta.json")
-            metadata_path = "/".join(metadata_path)
-            metadata = get_config(path=metadata_path)
-        except FileNotFoundError:
-            raise FileNotFoundError(f"meta data file for '{img_path}' not found at '{metadata_path}'.")
+        if metadata is None:
+            try:
+                metadata_path = img_path.split("/")[:-1]
+                metadata_path.append("meta.json")
+                metadata_path = "/".join(metadata_path)
+                metadata = get_config(path=metadata_path)
+            except FileNotFoundError:
+                raise FileNotFoundError(f"meta data file for '{img_path}' not found at '{metadata_path}'.")
         prompted_baseline = metadata["baseline_m"]
         focal_length = metadata["focal_mm"]
 
@@ -318,40 +319,7 @@ def run_inv_sd(
     return image_inv, latent
 
 
-if __name__ == "__main__":
-    inf_config = get_config(path="../cfg/inference_config.json")
-    qpi_config = get_config(path="../cfg/qwen_config.json")
-    os.makedirs(inf_config["output_prefix"], exist_ok=True)
-
-    verbose=True
-
-    # from here per image
-    img_path = "../../../resources/car_left.jpg"
-    baseline_prompt = None
-
-    prompted_baseline, focal_length = get_baseline_and_focal_length(
-        img_path, 
-        baseline_prompt, 
-        inf_config,
-        qpi_config,
-        verbose=verbose
-    )
-    reconstruction_prompt = f"a sports car in a museum, captured by a stereo camera with baseline distance 0 and focal length {focal_length}"
-    conditioning_prompt = f"a sports car in a museum, captured by a stereo camera with baseline distance {prompted_baseline} and focal length {focal_length}"
-    prompts = [
-        reconstruction_prompt,
-        conditioning_prompt
-    ]
-    camera_params = [
-        prompted_baseline,
-        focal_length
-    ]
-    if verbose:
-        print(f"[RECONSTRUCTION_PROMPT] '{reconstruction_prompt}'")
-        print(f"[CONDITIONING_PROMPT] '{conditioning_prompt}'")
-        print(f"[DEPTHMAP_FROM_{'PROMPT' if inf_config['depthmap_from_prompt'] else 'SENSOR'}] B = {prompted_baseline}")
-        print(f"[DEPTHMAP_FROM_{'PROMPT' if inf_config['depthmap_from_prompt'] else 'SENSOR'}] f = {focal_length}")
-
+def get_models(inf_config):
     scheduler = DDIMScheduler(
         beta_start=0.00085, 
         beta_end=0.012, 
@@ -386,16 +354,131 @@ if __name__ == "__main__":
         invert=False
     ).to(inf_config["device"])
 
-    image_inv, latent = run_inv_sd(
-        img_path,
-        prompts,
-        camera_params,
-        ldm_stable,
-        depthmodel,
-        disparitymodel,
-        inf_config,
-        verbose=verbose
+    return ldm_stable, depthmodel, disparitymodel
+
+
+def get_dataset_samples_from_folder_tree(root_ptr, depth=1, files_to_get=["left.jpg", "right.jpg", "meta.json"], verbose=True):
+    def get_subfolder_paths(root_folders):
+        folders = []
+        for root_folder in root_folders:
+            for _, dirs, _ in os.walk(root_folder, followlinks=False):
+                if len(dirs) == 0: break
+                for dir in dirs:
+                    folders.append(os.sep.join([root_folder, dir]))
+                if len(folders) >= len(dirs): break
+        return folders
+    
+    if verbose: print(f"loading dataset at '{root_ptr}'...")
+
+    current_depth = depth
+    samples_paths = get_subfolder_paths([root_ptr])
+    while current_depth > 1:
+        samples_paths = get_subfolder_paths(samples_paths)
+        current_depth -= 1
+
+    if verbose: print()
+    counter = 1
+    skipped = 0
+    samples = []
+    for sample_path in samples_paths:
+        if verbose:
+            sys.stdout.write("\033[F")
+            print(f"processing sample {counter}/{len(samples_paths)} ({skipped} skipped)")
+
+        # make sure all requested files exist
+        files = None
+        for _, _, _files in os.walk(sample_path):
+            files = {f: None for f in _files} # for O(1) search
+        try:
+            for f in files_to_get:
+                _ = files[f]
+        except KeyError:
+            skipped += 1
+            continue
+        
+        # samples[i] <- {
+        #   file_to_get: path_to_file
+        #   "sample_path": path/to/sample/in/dataset/
+        # }
+        sample_dict = {f: os.sep.join([sample_path, f]) for f in files_to_get}
+        sample_dict["sample_path"] = sample_path.lstrip(root_ptr)
+        samples.append(sample_dict)
+        counter += 1
+    
+    return samples
+
+
+if __name__ == "__main__":
+    inf_config = get_config(path="../cfg/inference_config.json")
+    qpi_config = get_config(path="../cfg/qwen_config.json")
+    os.makedirs(inf_config["output_prefix"], exist_ok=True)
+
+    verbose=True
+
+    ldm_stable, depthmodel, disparitymodel = get_models(inf_config)
+
+    samples = get_dataset_samples_from_folder_tree(
+        "../../../data/galvani/image_collection", 
+        depth=2, 
+        files_to_get=["left.jpg", "right.jpg", "meta.json"], 
+        verbose=True
     )
+    root_output_prefix = inf_config["output_prefix"]
+
+    for sample in samples:
+        left_img_path = sample["left.jpg"]
+        metadata = get_config(sample["meta.json"])
+
+        # override the output_prefix to replicate the dataset's folder tree
+        inf_config["output_prefix"] += sample["sample_path"]+os.sep
+        os.makedirs(inf_config["output_prefix"], exist_ok=True)
+
+        baseline_prompt = None
+
+        prompted_baseline, focal_length = get_baseline_and_focal_length(
+            left_img_path,  
+            inf_config,
+            qpi_config,
+            baseline_prompt=baseline_prompt,
+            metadata=metadata,
+            verbose=verbose
+        )
+        reconstruction_prompt = f""
+        conditioning_prompt = f""
+        prompts = [
+            reconstruction_prompt,
+            conditioning_prompt
+        ]
+        camera_params = [
+            prompted_baseline,
+            focal_length
+        ]
+        save_config({
+            "sample_path": sample["sample_path"],
+            "baseline_prompt": baseline_prompt,
+            "reconstruction_prompt": reconstruction_prompt,
+            "conditioning_prompt": conditioning_prompt,
+            "prompted_baseline": prompted_baseline,
+            "focal_length": focal_length
+        }, f"{inf_config['output_prefix']}sample_config.json")
+
+        if verbose:
+            print(f"[RECONSTRUCTION_PROMPT] '{reconstruction_prompt}'")
+            print(f"[CONDITIONING_PROMPT] '{conditioning_prompt}'")
+            print(f"[DEPTHMAP_FROM_{'PROMPT' if inf_config['depthmap_from_prompt'] else 'SENSOR'}] B = {prompted_baseline}")
+            print(f"[DEPTHMAP_FROM_{'PROMPT' if inf_config['depthmap_from_prompt'] else 'SENSOR'}] f = {focal_length}")
+
+        image_inv, latent = run_inv_sd(
+            left_img_path,
+            prompts,
+            camera_params,
+            ldm_stable,
+            depthmodel,
+            disparitymodel,
+            inf_config,
+            verbose=verbose
+        )
+        inf_config["output_prefix"] = root_output_prefix # revert overridden output prefix
 
     # save configs
     cfg_save_path = f"{inf_config['output_prefix']}cfg{os.sep}"
