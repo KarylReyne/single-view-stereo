@@ -18,7 +18,7 @@ cd ../PromptToPrompt
 pip install -r requirements.txt
 cd ..
 pip install timm "numpy<2" tueplots accelerate ijson
-pip install diffusers==0.35.2 transformers==4.57.1
+pip install diffusers==0.35.2 transformers==4.57.1 lightning-utilities==0.15.2 torchmetrics==1.8.2 openexr_numpy
 ```
 
 ### activate both envs

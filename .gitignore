@@ -9,6 +9,8 @@ stereoview-venv
 data/galvani/**
 !data/galvani/image_collection
 !data/galvani/image_collection/**/*
+data/train/**
+data/*.zip
 
 # models
 src/galvani/StereoDiffusion/midas_models/dpt_hybrid-midas-501f0c75.pt

@@ -8,10 +8,14 @@ import sys
 from typing import Optional, List
 from skimage.transform import resize
 from diffusers import StableDiffusionPipeline, DDIMScheduler
+import cv2
+from skimage.metrics import structural_similarity, peak_signal_noise_ratio
+from torchmetrics.image.lpip import LearnedPerceptualImagePatchSimilarity
+import random
 
 sys.path.append('./DensePredictionTransformer')
 from DensePredictionTransformer.dpt.models import DPTDepthModel
-from stereoutils import stereo_shift_torch, norm_depth, BNAttention, register_attention_editor_diffusers, load_512
+from stereoutils import stereo_shift_torch, norm_depth, BNAttention, register_attention_editor_diffusers, load_512, load_exr
 
 sys.path.append('./PromptToPrompt')
 import ptp_utils
@@ -316,7 +320,7 @@ def run_inv_sd(
         save_cross_attention([prompts[1]], ldm_stable.tokenizer, controller, 16, ["up", "down"], f'{inf_config["output_prefix"]}attention.png')
         print("done")
 
-    return image_inv, latent
+    return image_inv, latent, depth_to_disparity, disparity
 
 
 def get_models(inf_config):
@@ -357,7 +361,7 @@ def get_models(inf_config):
     return ldm_stable, depthmodel, disparitymodel
 
 
-def get_dataset_samples_from_folder_tree(root_ptr, depth=1, files_to_get=["left.jpg", "right.jpg", "meta.json"], verbose=True):
+def get_dataset_samples_from_folder_tree(root_ptr, depth=1, files_to_get=["left.jpg", "right.jpg", "meta.json"], shuffle=False, max_samples=None, verbose=True):
     def get_subfolder_paths(root_folders):
         folders = []
         for root_folder in root_folders:
@@ -404,8 +408,15 @@ def get_dataset_samples_from_folder_tree(root_ptr, depth=1, files_to_get=["left.
         sample_dict["sample_path"] = sample_path.lstrip(root_ptr)
         samples.append(sample_dict)
         counter += 1
+
+    if max_samples != None:
+        samples = samples[:max_samples]
+
+    samples_indices = np.arange(len(samples))
+    if shuffle:
+        random.shuffle(samples_indices)
     
-    return samples
+    return samples, samples_indices
 
 
 if __name__ == "__main__":
@@ -417,15 +428,46 @@ if __name__ == "__main__":
 
     ldm_stable, depthmodel, disparitymodel = get_models(inf_config)
 
-    samples = get_dataset_samples_from_folder_tree(
-        "../../../data/galvani/image_collection", 
-        depth=2, 
-        files_to_get=["left.jpg", "right.jpg", "meta.json"], 
+    samples, samples_indices = get_dataset_samples_from_folder_tree(
+        "../../../data/train", # "../../../data/galvani/image_collection"
+        depth=1, # 2
+        files_to_get=["left.jpg", "right.jpg", "meta.json", "disparity.exr"],
+        shuffle=inf_config["shuffle_dataset"],
+        max_samples=10, # for debugging
         verbose=True
     )
     root_output_prefix = inf_config["output_prefix"]
 
-    for sample in samples:
+    all_left_psnr_scores = []
+    all_left_ssim_scores = []
+    all_left_lpips_scores = []
+    all_right_psnr_scores = []
+    all_right_ssim_scores = []
+    all_right_lpips_scores = []
+    all_disp_lpips_scores = []
+    all_depth_to_disp_lpips_scores = []
+
+    psnr = lambda x, y: peak_signal_noise_ratio(x, y, data_range=255)
+    ssim = lambda x, y: structural_similarity(x, y, data_range=255, channel_axis=-1)
+    def lpips(x, y):
+        _lpips = LearnedPerceptualImagePatchSimilarity(net_type='squeeze', normalize=True)
+        if x.ndim == 2:
+            x = rearrange(norm_depth(x), "h w -> () h w").repeat(1,3,1,1)
+            x = torch.Tensor(x)
+            y = rearrange(norm_depth(y), "h w -> () h w").repeat(1,3,1,1)
+        else:
+            x = rearrange(norm_depth(x), "h w c -> () c h w")
+            y = rearrange(norm_depth(y), "h w c -> () c h w")
+        return _lpips(x, y)
+
+    counter = 1
+
+    for i in samples_indices:
+
+        sample = samples[i]
+
+        if verbose: print(f"--- processing sample {counter}/{len(samples)} ---")
+
         left_img_path = sample["left.jpg"]
         metadata = get_config(sample["meta.json"])
 
@@ -433,7 +475,10 @@ if __name__ == "__main__":
         inf_config["output_prefix"] += sample["sample_path"]+os.sep
         os.makedirs(inf_config["output_prefix"], exist_ok=True)
 
-        baseline_prompt = None
+        if inf_config["use_baseline_prompt"]:
+            baseline_prompt = inf_config["baseline_prompt"]
+        else:
+            baseline_prompt = None # => get params from metadata instead
 
         prompted_baseline, focal_length = get_baseline_and_focal_length(
             left_img_path,  
@@ -443,8 +488,14 @@ if __name__ == "__main__":
             metadata=metadata,
             verbose=verbose
         )
-        reconstruction_prompt = f""
-        conditioning_prompt = f""
+
+        if inf_config["use_conditioning_prompt"]:
+            reconstruction_prompt = f"{metadata['desc']}, captured with a stereo camera with baseline distance 0.0 and focal length {focal_length:.2f}"
+            conditioning_prompt = f"{metadata['desc']}, captured with a stereo camera with baseline distance {prompted_baseline:.2f} and focal length {focal_length:.2f}"
+        else:
+            reconstruction_prompt = f""
+            conditioning_prompt = f""
+
         prompts = [
             reconstruction_prompt,
             conditioning_prompt
@@ -453,14 +504,16 @@ if __name__ == "__main__":
             prompted_baseline,
             focal_length
         ]
-        save_config({
+
+        sample_config = {
+            "sample_index": i,
             "sample_path": sample["sample_path"],
             "baseline_prompt": baseline_prompt,
             "reconstruction_prompt": reconstruction_prompt,
             "conditioning_prompt": conditioning_prompt,
             "prompted_baseline": prompted_baseline,
             "focal_length": focal_length
-        }, f"{inf_config['output_prefix']}sample_config.json")
+        }
 
         if verbose:
             print(f"[RECONSTRUCTION_PROMPT] '{reconstruction_prompt}'")
@@ -468,7 +521,11 @@ if __name__ == "__main__":
             print(f"[DEPTHMAP_FROM_{'PROMPT' if inf_config['depthmap_from_prompt'] else 'SENSOR'}] B = {prompted_baseline}")
             print(f"[DEPTHMAP_FROM_{'PROMPT' if inf_config['depthmap_from_prompt'] else 'SENSOR'}] f = {focal_length}")
 
-        image_inv, latent = run_inv_sd(
+        left_gt = load_512(left_img_path)
+        right_gt = load_512(sample["right.jpg"])
+        disparity_gt = load_exr(sample["disparity.exr"])
+
+        image_inv, latent, depth_to_disparity, disparity = run_inv_sd(
             left_img_path,
             prompts,
             camera_params,
@@ -478,11 +535,61 @@ if __name__ == "__main__":
             inf_config,
             verbose=verbose
         )
+
+        left_gen, right_gen = image_inv
+
+        for idx, pair in enumerate([[left_gt, left_gen], [right_gt, right_gen], [disparity_gt, depth_to_disparity, disparity]]):
+            if idx == 0:
+                this_psnr = psnr(pair[0], pair[1])
+                this_ssim = ssim(pair[0], pair[1])
+                this_lpips = lpips(pair[0], pair[1])
+
+                sample_config["left_psnr"] = this_psnr
+                all_left_psnr_scores.append(this_psnr)
+                sample_config["left_ssim"] = this_ssim
+                all_left_ssim_scores.append(this_ssim)
+                sample_config["left_lpips"] = this_lpips
+                all_left_lpips_scores.append(this_lpips)
+
+            elif idx == 1:
+                this_psnr = psnr(pair[0], pair[1])
+                this_ssim = ssim(pair[0], pair[1])
+                this_lpips = lpips(pair[0], pair[1])
+
+                sample_config["right_psnr"] = this_psnr
+                all_right_psnr_scores.append(this_psnr)
+                sample_config["right_ssim"] = this_ssim
+                all_right_ssim_scores.append(this_ssim)
+                sample_config["right_lpips"] = this_lpips
+                all_right_lpips_scores.append(this_lpips)
+
+            elif idx == 2:
+                this_lpips = lpips(pair[0], pair[1])
+                this_lpips2 = lpips(pair[0], pair[2])
+
+                sample_config["disp_lpips"] = this_lpips
+                sample_config["depth-to-disp_lpips"] = this_lpips2
+                all_disp_lpips_scores.append(this_lpips)
+                all_depth_to_disp_lpips_scores.append(this_lpips2)
+
+        save_config(sample_config, f"{inf_config['output_prefix']}sample_config.json")
+
         inf_config["output_prefix"] = root_output_prefix # revert overridden output prefix
+        counter += 1
 
     # save configs
     cfg_save_path = f"{inf_config['output_prefix']}cfg{os.sep}"
     os.makedirs(cfg_save_path, exist_ok=True)
-    for t in [(inf_config, "inference_config.json"), (qpi_config, "qwen_config.json")]:
+    eval_means_config = {
+        "mean_psnr_left": np.mean(all_left_psnr_scores),
+        "mean_ssim_left": np.mean(all_left_ssim_scores),
+        "mean_lpips_left": np.mean(all_left_lpips_scores),
+        "mean_psnr_right": np.mean(all_right_psnr_scores),
+        "mean_ssim_right": np.mean(all_right_ssim_scores),
+        "mean_lpips_right": np.mean(all_right_lpips_scores),
+        "mean_lpips_deph_to_disp": np.mean(all_depth_to_disp_lpips_scores),
+        "mean_lpips_disp": np.mean(all_disp_lpips_scores)
+    }
+    for t in [(inf_config, "inference_config.json"), (qpi_config, "qwen_config.json"), (eval_means_config, "eval_means_config.json")]:
         save_config(t[0], f"{cfg_save_path}{t[1]}")
 

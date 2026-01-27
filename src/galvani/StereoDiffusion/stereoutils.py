@@ -10,10 +10,18 @@ from einops import rearrange,repeat
 import gc
 from torchvision.utils import save_image
 import sys
+import numpy as np
+import openexr_numpy
 sys.path.append('./StableDiffusion')
 from StableDiffusion.ldm.models.diffusion.ddim import DDIMSampler
 sys.path.append('./PromptToPrompt')
 from PromptToPrompt.ptp_null_text import AttentionStore
+
+
+def load_exr(path):
+    array = openexr_numpy.imread(path, "R")
+    image = np.array(Image.fromarray(array).resize((512, 512)))
+    return image
 
 
 def load_512(image_path, left=0, right=0, top=0, bottom=0):

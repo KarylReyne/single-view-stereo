@@ -36,7 +36,7 @@ class StereoEvaluator:
     h, w = gt_right.shape[:2]
     if gen_right.shape[:2] != (h, w):
         print("Size of generated image does not match ground truth. Resizing.")
-        gen_right = cv2.resize(gen_right, (w, h), interpolation=cv2.INTER_AREA)
+       gen_right = cv2.resize(gen_right, (w, h), interpolation=cv2.INTER_AREA)
     
     return gt_left, gt_right, gen_right
 
