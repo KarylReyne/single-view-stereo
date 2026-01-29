@@ -11,6 +11,7 @@ from diffusers import StableDiffusionPipeline, DDIMScheduler
 import cv2
 from skimage.metrics import structural_similarity, peak_signal_noise_ratio
 from torchmetrics.image.lpip import LearnedPerceptualImagePatchSimilarity
+from torch.nn.functional import normalize
 import random
 
 sys.path.append('./DensePredictionTransformer')
@@ -361,7 +362,7 @@ def get_models(inf_config):
     return ldm_stable, depthmodel, disparitymodel
 
 
-def get_dataset_samples_from_folder_tree(root_ptr, depth=1, files_to_get=["left.jpg", "right.jpg", "meta.json"], shuffle=False, max_samples=None, verbose=True):
+def get_dataset_samples_from_folder_tree(root_ptr, depth=1, files_to_get=["left.jpg", "right.jpg", "meta.json"], shuffle=False, shuffle_seed=42, max_samples=None, verbose=True):
     def get_subfolder_paths(root_folders):
         folders = []
         for root_folder in root_folders:
@@ -414,30 +415,74 @@ def get_dataset_samples_from_folder_tree(root_ptr, depth=1, files_to_get=["left.
 
     samples_indices = np.arange(len(samples))
     if shuffle:
-        random.shuffle(samples_indices)
+        random.Random(shuffle_seed).shuffle(samples_indices)
     
     return samples, samples_indices
 
 
 if __name__ == "__main__":
-    inf_config = get_config(path="../cfg/inference_config.json")
+    # inf_config = get_config(path="../cfg/inference_config.json")
+
+    # --- in progress --- (random 1k samples)
+    # eval1 no prompt | disparity | uni-directional | untrained
+    # inf_config = get_config(path="../cfg/eval1_config.json")
+
+    # eval2 no prompt | depth-to-disparity | uni-directional | untrained
+    # inf_config = get_config(path="../cfg/eval2_config.json")
+
+    # eval3 prompt | disparity | cross | untrained
+    # inf_config = get_config(path="../cfg/eval3_config.json")
+
+    # eval4 prompt | disparity | uni-directional | untrained
+    inf_config = get_config(path="../cfg/eval4_config.json")
+
+    # -- todo ---
+    # eval5 prompt | disparity | bi-directional | untrained
+    # inf_config = get_config(path="../cfg/inference_config.json")
+
+    # eval6 prompt | disparity | cross | trained
+    # inf_config = get_config(path="../cfg/inference_config.json")
+
+    # eval7 prompt | disparity | uni-directional | trained
+    # inf_config = get_config(path="../cfg/inference_config.json")
+
+    # eval8 prompt | disparity | bi-directional | trained
+    # inf_config = get_config(path="../cfg/inference_config.json")
+
     qpi_config = get_config(path="../cfg/qwen_config.json")
     os.makedirs(inf_config["output_prefix"], exist_ok=True)
 
-    verbose=True
+    verbose=inf_config["verbose"]
 
     ldm_stable, depthmodel, disparitymodel = get_models(inf_config)
 
     samples, samples_indices = get_dataset_samples_from_folder_tree(
-        "../../../data/train", # "../../../data/galvani/image_collection"
-        depth=1, # 2
+        inf_config["dataset_path"],
+        depth=inf_config["dataset_depth"],
         files_to_get=["left.jpg", "right.jpg", "meta.json", "disparity.exr"],
         shuffle=inf_config["shuffle_dataset"],
-        max_samples=10, # for debugging
+        shuffle_seed=inf_config["shuffle_dataset_seed"],
+        max_samples=inf_config["dataset_max_samples"],
         verbose=True
     )
     root_output_prefix = inf_config["output_prefix"]
 
+    psnr = lambda x, y: float(peak_signal_noise_ratio(x, y, data_range=255))
+    ssim = lambda x, y: float(structural_similarity(x, y, data_range=255, channel_axis=-1))
+    def lpips(x, y, device=inf_config["device"]):
+        _lpips = LearnedPerceptualImagePatchSimilarity(net_type='squeeze', normalize=True).to(device)
+        if isinstance(x, np.ndarray): x = torch.Tensor(x).to(device)
+        if isinstance(y, np.ndarray): y = torch.Tensor(y).to(device)
+        x = normalize(x)
+        y = normalize(y)
+        if x.dim() == 2 and y.dim() == 3: # disparity maps
+            x = rearrange(x, "h w -> () h w").repeat(1,3,1,1)
+            y = y.repeat(1,3,1,1) # 1 h w -> 1 3 h w
+        else: # left/right images
+            x = rearrange(x, "h w c -> () c h w")
+            y = rearrange(y, "h w c -> () c h w")
+        return float(_lpips(x, y))
+    
     all_left_psnr_scores = []
     all_left_ssim_scores = []
     all_left_lpips_scores = []
@@ -446,27 +491,12 @@ if __name__ == "__main__":
     all_right_lpips_scores = []
     all_disp_lpips_scores = []
     all_depth_to_disp_lpips_scores = []
-
-    psnr = lambda x, y: peak_signal_noise_ratio(x, y, data_range=255)
-    ssim = lambda x, y: structural_similarity(x, y, data_range=255, channel_axis=-1)
-    def lpips(x, y):
-        _lpips = LearnedPerceptualImagePatchSimilarity(net_type='squeeze', normalize=True)
-        if x.ndim == 2:
-            x = rearrange(norm_depth(x), "h w -> () h w").repeat(1,3,1,1)
-            x = torch.Tensor(x)
-            y = rearrange(norm_depth(y), "h w -> () h w").repeat(1,3,1,1)
-        else:
-            x = rearrange(norm_depth(x), "h w c -> () c h w")
-            y = rearrange(norm_depth(y), "h w c -> () c h w")
-        return _lpips(x, y)
-
     counter = 1
 
     for i in samples_indices:
-
         sample = samples[i]
 
-        if verbose: print(f"--- processing sample {counter}/{len(samples)} ---")
+        print(f"--- processing sample {counter}/{len(samples)} ---")
 
         left_img_path = sample["left.jpg"]
         metadata = get_config(sample["meta.json"])
@@ -506,7 +536,7 @@ if __name__ == "__main__":
         ]
 
         sample_config = {
-            "sample_index": i,
+            "sample_index": int(i),
             "sample_path": sample["sample_path"],
             "baseline_prompt": baseline_prompt,
             "reconstruction_prompt": reconstruction_prompt,
@@ -538,39 +568,38 @@ if __name__ == "__main__":
 
         left_gen, right_gen = image_inv
 
-        for idx, pair in enumerate([[left_gt, left_gen], [right_gt, right_gen], [disparity_gt, depth_to_disparity, disparity]]):
-            if idx == 0:
-                this_psnr = psnr(pair[0], pair[1])
-                this_ssim = ssim(pair[0], pair[1])
-                this_lpips = lpips(pair[0], pair[1])
+        # left
+        this_psnr = psnr(left_gt, left_gen)
+        this_ssim = ssim(left_gt, left_gen)
+        this_lpips = lpips(left_gt, left_gen)
 
-                sample_config["left_psnr"] = this_psnr
-                all_left_psnr_scores.append(this_psnr)
-                sample_config["left_ssim"] = this_ssim
-                all_left_ssim_scores.append(this_ssim)
-                sample_config["left_lpips"] = this_lpips
-                all_left_lpips_scores.append(this_lpips)
+        sample_config["left_psnr"] = this_psnr
+        all_left_psnr_scores.append(this_psnr)
+        sample_config["left_ssim"] = this_ssim
+        all_left_ssim_scores.append(this_ssim)
+        sample_config["left_lpips"] = this_lpips
+        all_left_lpips_scores.append(this_lpips)
 
-            elif idx == 1:
-                this_psnr = psnr(pair[0], pair[1])
-                this_ssim = ssim(pair[0], pair[1])
-                this_lpips = lpips(pair[0], pair[1])
+        # right
+        this_psnr = psnr(right_gt, right_gen)
+        this_ssim = ssim(right_gt, right_gen)
+        this_lpips = lpips(right_gt, right_gen)
 
-                sample_config["right_psnr"] = this_psnr
-                all_right_psnr_scores.append(this_psnr)
-                sample_config["right_ssim"] = this_ssim
-                all_right_ssim_scores.append(this_ssim)
-                sample_config["right_lpips"] = this_lpips
-                all_right_lpips_scores.append(this_lpips)
+        sample_config["right_psnr"] = this_psnr
+        all_right_psnr_scores.append(this_psnr)
+        sample_config["right_ssim"] = this_ssim
+        all_right_ssim_scores.append(this_ssim)
+        sample_config["right_lpips"] = this_lpips
+        all_right_lpips_scores.append(this_lpips)
 
-            elif idx == 2:
-                this_lpips = lpips(pair[0], pair[1])
-                this_lpips2 = lpips(pair[0], pair[2])
+        # disparity
+        this_lpips1 = lpips(disparity_gt, disparity)
+        this_lpips2 = lpips(disparity_gt, depth_to_disparity)
 
-                sample_config["disp_lpips"] = this_lpips
-                sample_config["depth-to-disp_lpips"] = this_lpips2
-                all_disp_lpips_scores.append(this_lpips)
-                all_depth_to_disp_lpips_scores.append(this_lpips2)
+        sample_config["disp_lpips"] = this_lpips1
+        sample_config["depth-to-disp_lpips"] = this_lpips2
+        all_disp_lpips_scores.append(this_lpips1)
+        all_depth_to_disp_lpips_scores.append(this_lpips2)
 
         save_config(sample_config, f"{inf_config['output_prefix']}sample_config.json")
 
@@ -580,15 +609,16 @@ if __name__ == "__main__":
     # save configs
     cfg_save_path = f"{inf_config['output_prefix']}cfg{os.sep}"
     os.makedirs(cfg_save_path, exist_ok=True)
+    mean = lambda x: float(np.mean(x))
     eval_means_config = {
-        "mean_psnr_left": np.mean(all_left_psnr_scores),
-        "mean_ssim_left": np.mean(all_left_ssim_scores),
-        "mean_lpips_left": np.mean(all_left_lpips_scores),
-        "mean_psnr_right": np.mean(all_right_psnr_scores),
-        "mean_ssim_right": np.mean(all_right_ssim_scores),
-        "mean_lpips_right": np.mean(all_right_lpips_scores),
-        "mean_lpips_deph_to_disp": np.mean(all_depth_to_disp_lpips_scores),
-        "mean_lpips_disp": np.mean(all_disp_lpips_scores)
+        "mean_psnr_left": mean(all_left_psnr_scores),
+        "mean_ssim_left": mean(all_left_ssim_scores),
+        "mean_lpips_left": mean(all_left_lpips_scores),
+        "mean_psnr_right": mean(all_right_psnr_scores),
+        "mean_ssim_right": mean(all_right_ssim_scores),
+        "mean_lpips_right": mean(all_right_lpips_scores),
+        "mean_lpips_deph_to_disp": mean(all_depth_to_disp_lpips_scores),
+        "mean_lpips_disp": mean(all_disp_lpips_scores)
     }
     for t in [(inf_config, "inference_config.json"), (qpi_config, "qwen_config.json"), (eval_means_config, "eval_means_config.json")]:
         save_config(t[0], f"{cfg_save_path}{t[1]}")

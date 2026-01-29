@@ -9,7 +9,7 @@ stereoview-venv
 data/galvani/**
 !data/galvani/image_collection
 !data/galvani/image_collection/**/*
-data/train/**
+data/eval/**
 data/*.zip
 
 # models
@@ -26,10 +26,6 @@ src/galvani/zero_123/zero123/view_release/__MACOSX/._valid_paths.json
 src/galvani/StereoDiffusion/outputs/*
 src/galvani/StableDiffusionFinetuning/out/*
 out/**
-!out/example_silent
-!out/example_silent/**/*
-!out/example_verbose
-!out/example_verbose/**/*
 
 # latex
 latex/**/*.aux
