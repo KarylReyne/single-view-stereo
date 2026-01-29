@@ -8,15 +8,10 @@ import sys
 from typing import Optional, List
 from skimage.transform import resize
 from diffusers import StableDiffusionPipeline, DDIMScheduler
-import cv2
-from skimage.metrics import structural_similarity, peak_signal_noise_ratio
-from torchmetrics.image.lpip import LearnedPerceptualImagePatchSimilarity
-from torch.nn.functional import normalize
-import random
-from lora_smoke_train import inject_lora_into_unet_attention, CameraCondMLP, LoRALinear, lora_parameters
+
 sys.path.append('./DensePredictionTransformer')
 from DensePredictionTransformer.dpt.models import DPTDepthModel
-from stereoutils import stereo_shift_torch, norm_depth, BNAttention, register_attention_editor_diffusers, load_512, load_exr
+from stereoutils import stereo_shift_torch, norm_depth, BNAttention, register_attention_editor_diffusers, load_512
 
 sys.path.append('./PromptToPrompt')
 import ptp_utils
@@ -30,9 +25,16 @@ from stereodiffusion_nti import EmptyControl, NullInversion
 
 
 def run_and_display(
-    ldm_stable, prompts, controller, disparity, inf_config,
-    cam_mlp, prompted_baseline, focal_length, # NEU hinzufügen
-    latent=None, run_baseline=False, generator=None, uncond_embeddings=None, verbose=True,
+    ldm_stable, 
+    prompts, 
+    controller, 
+    disparity,
+    inf_config,
+    latent=None,
+    run_baseline=False,
+    generator=None, 
+    uncond_embeddings=None,
+    verbose=True,
 ):
     if run_baseline:
         print("w.o. prompt-to-prompt")
@@ -58,9 +60,6 @@ def run_and_display(
         controller,
         disparity,
         inf_config,
-        cam_mlp=cam_mlp,                    # NEU
-        prompted_baseline=prompted_baseline, # NEU
-        focal_length=focal_length,
         uncond_embeddings=uncond_embeddings, 
         latent=latent,
         verbose=verbose
@@ -76,9 +75,6 @@ def text2stereoimage_ldm_stable(
     controller,
     disparity,
     inf_config,
-    cam_mlp,          
-    prompted_baseline, 
-    focal_length,       
     generator: Optional[torch.Generator] = None,
     latent: Optional[torch.FloatTensor] = None,
     uncond_embeddings=None,
@@ -113,18 +109,6 @@ def text2stereoimage_ldm_stable(
         uncond_embeddings_ = model.text_encoder(uncond_input.input_ids.to(model.device))[0]
     else:
         uncond_embeddings_ = None
-        
-    b_n = torch.tensor([prompted_baseline / 0.14], device=model.device).float()
-    f_n = torch.tensor([focal_length / 40.0], device=model.device).float()
-
-    with torch.no_grad():
-        # cam_mlp muss als Parameter an diese Funktion übergeben werden!
-        cam_vec = cam_mlp(b_n, f_n) # Ergebnis: [1, 768]
-        
-        # In StereoDiffusion ist batch_size=2: [Links, Rechts]
-        # Wir addieren das gelernten Verschiebe-Signal NUR auf das rechte Bild (Index 1)
-        if text_embeddings.shape[0] > 1:
-            text_embeddings[1:2] = text_embeddings[1:2] + cam_vec.unsqueeze(1)
 
     latent, latents = ptp_utils.init_latent(latent, model, height, width, generator, batch_size)
 
@@ -146,11 +130,10 @@ def text2stereoimage_ldm_stable(
         
         # also reconstruct a right-side stereo image (StereoDiffusion)
         if i == latents_editing_freq:
-            pass
-            # if isinstance(disparity,torch.Tensor):
-            #     disparity = torch.nn.functional.interpolate(disparity.unsqueeze(1),size=[64,64],mode="bicubic",align_corners=False,).squeeze(1)
-            # elif isinstance(disparity,np.ndarray):
-            #     disparity = resize(disparity,(64,64))
+            if isinstance(disparity,torch.Tensor):
+                disparity = torch.nn.functional.interpolate(disparity.unsqueeze(1),size=[64,64],mode="bicubic",align_corners=False,).squeeze(1)
+            elif isinstance(disparity,np.ndarray):
+                disparity = resize(disparity,(64,64))
             
             scale_factor_percent = 8
             latents_current = stereo_shift_torch(
@@ -179,18 +162,17 @@ def text2stereoimage_ldm_stable(
                 latents[1:][mask] = latents_current[mask]
 
         if  (i > latents_editing_freq and i % latents_editing_freq == 0):
-            pass
-            # latents_current = stereo_shift_torch(
-            #     latents[:1], # left latent
-            #     disparity, 
-            #     scale_factor_percent=scale_factor_percent
-            # )
-            # latents_current = latents_current[1:] # latents_current <- right latent
-            # latents[1:][mask] = latents_current[mask] # prev right latent * mask <- curr right latent * mask
+            latents_current = stereo_shift_torch(
+                latents[:1], # left latent
+                disparity, 
+                scale_factor_percent=scale_factor_percent
+            )
+            latents_current = latents_current[1:] # latents_current <- right latent
+            latents[1:][mask] = latents_current[mask] # prev right latent * mask <- curr right latent * mask
             
-            # if verbose:
-            #     _latents_masked = ptp_utils.latent2image(model.vae, latents)
-            #     save_images(_latents_masked, f'{inf_config["output_prefix"]}latents-with-applied-mask_at_t={t}.png')
+            if verbose:
+                _latents_masked = ptp_utils.latent2image(model.vae, latents)
+                save_images(_latents_masked, f'{inf_config["output_prefix"]}latents-with-applied-mask_at_t={t}.png')
 
         
     if return_type == 'image':
@@ -199,21 +181,6 @@ def text2stereoimage_ldm_stable(
         image = latents
     return image, latent
 
-
-def load_my_trained_lora(unet, cam_mlp, path):
-    print(f"Lade trainierte Gewichte von {path}...")
-    checkpoint = torch.load(path, map_location=unet.device)
-    
-    # 1. MLP Gewichte laden
-    cam_mlp.load_state_dict(checkpoint["cam_mlp"])
-    
-    # 2. LoRA Gewichte in die Layer kopieren
-    lora_state = checkpoint["lora"]
-    for name, module in unet.named_modules():
-        if isinstance(module, LoRALinear) and name in lora_state:
-            module.lora_A.load_state_dict(lora_state[name]["lora_A"])
-            module.lora_B.load_state_dict(lora_state[name]["lora_B"])
-    print("Gewichte erfolgreich geladen.")
 
 def get_baseline_and_focal_length(img_path, inf_config, qpi_config, baseline_prompt=None, metadata=None, verbose=False):
     # custom baseline distance and focal length
@@ -296,12 +263,8 @@ def run_inv_sd(
     depthmodel,
     disparitymodel,
     inf_config,
-    cam_mlp,     
-    prompted_baseline, 
-    focal_length,
     verbose=False
 ):
-    reconstruction_prompt = prompts[0]
     image = load_512(img_path)
     null_inversion = NullInversion(ldm_stable, inf_config)
     (image_gt, image_enc), x_t, uncond_embeddings = null_inversion.invert(
@@ -343,10 +306,7 @@ def run_inv_sd(
         controller,
         disp, 
         inf_config,
-        cam_mlp=cam_mlp,                  # Korrekte Übergabe
-        prompted_baseline=prompted_baseline,
-        focal_length=focal_length,
-        run_baseline=False, 
+        run_baseline=False, # 1 => run with EmptyControl() first (no prompt conditioning)
         latent=x_t, 
         uncond_embeddings=uncond_embeddings,
         verbose=verbose
@@ -356,7 +316,7 @@ def run_inv_sd(
         save_cross_attention([prompts[1]], ldm_stable.tokenizer, controller, 16, ["up", "down"], f'{inf_config["output_prefix"]}attention.png')
         print("done")
 
-    return image_inv, latent, depth_to_disparity, disparity
+    return image_inv, latent
 
 
 def get_models(inf_config):
@@ -377,13 +337,6 @@ def get_models(inf_config):
         ldm_stable.disable_xformers_memory_efficient_attention()
     except AttributeError:
         print("Attribute disable_xformers_memory_efficient_attention() is missing")
-        
-    inject_lora_into_unet_attention(ldm_stable.unet, rank=8, alpha=8.0)
-    cam_mlp = CameraCondMLP(use_focal=True).to(inf_config["device"])
-    lora_path = "./lora_smoke.pt"
-    if not os.path.exists(lora_path):
-        raise FileNotFoundError(f"LoRA file not found at {lora_path}")
-    load_my_trained_lora(ldm_stable.unet, cam_mlp, lora_path)
 
     depthmodel = DPTDepthModel(
         path=inf_config["depthmodel_path"],
@@ -401,9 +354,10 @@ def get_models(inf_config):
         invert=False
     ).to(inf_config["device"])
 
-    return ldm_stable, depthmodel, disparitymodel, cam_mlp 
+    return ldm_stable, depthmodel, disparitymodel
 
-def get_dataset_samples_from_folder_tree(root_ptr, depth=1, files_to_get=["left.jpg", "right.jpg", "meta.json"], shuffle=False, shuffle_seed=42, max_samples=None, verbose=True):
+
+def get_dataset_samples_from_folder_tree(root_ptr, depth=1, files_to_get=["left.jpg", "right.jpg", "meta.json"], verbose=True):
     def get_subfolder_paths(root_folders):
         folders = []
         for root_folder in root_folders:
@@ -450,95 +404,28 @@ def get_dataset_samples_from_folder_tree(root_ptr, depth=1, files_to_get=["left.
         sample_dict["sample_path"] = sample_path.lstrip(root_ptr)
         samples.append(sample_dict)
         counter += 1
-
-    if max_samples != None:
-        samples = samples[:max_samples]
-
-    samples_indices = np.arange(len(samples))
-    if shuffle:
-        random.Random(shuffle_seed).shuffle(samples_indices)
     
-    return samples, samples_indices
+    return samples
 
 
 if __name__ == "__main__":
-    # inf_config = get_config(path="../cfg/inference_config.json")
-
-    # --- in progress --- (random 1k samples)
-    # eval1 no prompt | disparity | uni-directional | untrained
-    # inf_config = get_config(path="../cfg/eval1_config.json")
-
-    # eval2 no prompt | depth-to-disparity | uni-directional | untrained
-    # inf_config = get_config(path="../cfg/eval2_config.json")
-
-    # eval3 prompt | disparity | cross | untrained
-    # inf_config = get_config(path="../cfg/eval3_config.json")
-
-    # eval4 prompt | disparity | uni-directional | untrained
-    inf_config = get_config(path="../cfg/eval4_config.json")
-
-    # -- todo ---
-    # eval5 prompt | disparity | bi-directional | untrained
-    # inf_config = get_config(path="../cfg/inference_config.json")
-
-    # eval6 prompt | disparity | cross | trained
-    # inf_config = get_config(path="../cfg/inference_config.json")
-
-    # eval7 prompt | disparity | uni-directional | trained
-    # inf_config = get_config(path="../cfg/inference_config.json")
-
-    # eval8 prompt | disparity | bi-directional | trained
-    # inf_config = get_config(path="../cfg/inference_config.json")
-
+    inf_config = get_config(path="../cfg/inference_config.json")
     qpi_config = get_config(path="../cfg/qwen_config.json")
     os.makedirs(inf_config["output_prefix"], exist_ok=True)
 
-    verbose=inf_config["verbose"]
+    verbose=True
 
     ldm_stable, depthmodel, disparitymodel = get_models(inf_config)
 
-    samples, samples_indices = get_dataset_samples_from_folder_tree(
-        inf_config["dataset_path"],
-        depth=inf_config["dataset_depth"],
-        files_to_get=["left.jpg", "right.jpg", "meta.json", "disparity.exr"],
-        shuffle=inf_config["shuffle_dataset"],
-        shuffle_seed=inf_config["shuffle_dataset_seed"],
-        max_samples=inf_config["dataset_max_samples"],
+    samples = get_dataset_samples_from_folder_tree(
+        "../../../data/galvani/image_collection", 
+        depth=2, 
+        files_to_get=["left.jpg", "right.jpg", "meta.json"], 
         verbose=True
     )
     root_output_prefix = inf_config["output_prefix"]
 
-    psnr = lambda x, y: float(peak_signal_noise_ratio(x, y, data_range=255))
-    ssim = lambda x, y: float(structural_similarity(x, y, data_range=255, channel_axis=-1))
-    def lpips(x, y, device=inf_config["device"]):
-        _lpips = LearnedPerceptualImagePatchSimilarity(net_type='squeeze', normalize=True).to(device)
-        if isinstance(x, np.ndarray): x = torch.Tensor(x).to(device)
-        if isinstance(y, np.ndarray): y = torch.Tensor(y).to(device)
-        x = normalize(x)
-        y = normalize(y)
-        if x.dim() == 2 and y.dim() == 3: # disparity maps
-            x = rearrange(x, "h w -> () h w").repeat(1,3,1,1)
-            y = y.repeat(1,3,1,1) # 1 h w -> 1 3 h w
-        else: # left/right images
-            x = rearrange(x, "h w c -> () c h w")
-            y = rearrange(y, "h w c -> () c h w")
-        return float(_lpips(x, y))
-    
-    all_left_psnr_scores = []
-    all_left_ssim_scores = []
-    all_left_lpips_scores = []
-    all_right_psnr_scores = []
-    all_right_ssim_scores = []
-    all_right_lpips_scores = []
-    all_disp_lpips_scores = []
-    all_depth_to_disp_lpips_scores = []
-    counter = 1
-
-    for i in samples_indices:
-        sample = samples[i]
-
-        print(f"--- processing sample {counter}/{len(samples)} ---")
-
+    for sample in samples:
         left_img_path = sample["left.jpg"]
         metadata = get_config(sample["meta.json"])
 
@@ -546,10 +433,7 @@ if __name__ == "__main__":
         inf_config["output_prefix"] += sample["sample_path"]+os.sep
         os.makedirs(inf_config["output_prefix"], exist_ok=True)
 
-        if inf_config["use_baseline_prompt"]:
-            baseline_prompt = inf_config["baseline_prompt"]
-        else:
-            baseline_prompt = None # => get params from metadata instead
+        baseline_prompt = None
 
         prompted_baseline, focal_length = get_baseline_and_focal_length(
             left_img_path,  
@@ -559,14 +443,8 @@ if __name__ == "__main__":
             metadata=metadata,
             verbose=verbose
         )
-
-        if inf_config["use_conditioning_prompt"]:
-            reconstruction_prompt = f"{metadata['desc']}, captured with a stereo camera with baseline distance 0.0 and focal length {focal_length:.2f}"
-            conditioning_prompt = f"{metadata['desc']}, captured with a stereo camera with baseline distance {prompted_baseline:.2f} and focal length {focal_length:.2f}"
-        else:
-            reconstruction_prompt = f""
-            conditioning_prompt = f""
-
+        reconstruction_prompt = f""
+        conditioning_prompt = f""
         prompts = [
             reconstruction_prompt,
             conditioning_prompt
@@ -575,16 +453,14 @@ if __name__ == "__main__":
             prompted_baseline,
             focal_length
         ]
-
-        sample_config = {
-            "sample_index": int(i),
+        save_config({
             "sample_path": sample["sample_path"],
             "baseline_prompt": baseline_prompt,
             "reconstruction_prompt": reconstruction_prompt,
             "conditioning_prompt": conditioning_prompt,
             "prompted_baseline": prompted_baseline,
             "focal_length": focal_length
-        }
+        }, f"{inf_config['output_prefix']}sample_config.json")
 
         if verbose:
             print(f"[RECONSTRUCTION_PROMPT] '{reconstruction_prompt}'")
@@ -592,11 +468,7 @@ if __name__ == "__main__":
             print(f"[DEPTHMAP_FROM_{'PROMPT' if inf_config['depthmap_from_prompt'] else 'SENSOR'}] B = {prompted_baseline}")
             print(f"[DEPTHMAP_FROM_{'PROMPT' if inf_config['depthmap_from_prompt'] else 'SENSOR'}] f = {focal_length}")
 
-        left_gt = load_512(left_img_path)
-        right_gt = load_512(sample["right.jpg"])
-        disparity_gt = load_exr(sample["disparity.exr"])
-
-        image_inv, latent, depth_to_disparity, disparity = run_inv_sd(
+        image_inv, latent = run_inv_sd(
             left_img_path,
             prompts,
             camera_params,
@@ -604,66 +476,13 @@ if __name__ == "__main__":
             depthmodel,
             disparitymodel,
             inf_config,
-            cam_mlp=cam_mlp,              # HINZUFÜGEN
-            prompted_baseline=prompted_baseline, # HINZUFÜGEN
-            focal_length=focal_length,
             verbose=verbose
         )
-
-        left_gen, right_gen = image_inv
-
-        # left
-        this_psnr = psnr(left_gt, left_gen)
-        this_ssim = ssim(left_gt, left_gen)
-        this_lpips = lpips(left_gt, left_gen)
-
-        sample_config["left_psnr"] = this_psnr
-        all_left_psnr_scores.append(this_psnr)
-        sample_config["left_ssim"] = this_ssim
-        all_left_ssim_scores.append(this_ssim)
-        sample_config["left_lpips"] = this_lpips
-        all_left_lpips_scores.append(this_lpips)
-
-        # right
-        this_psnr = psnr(right_gt, right_gen)
-        this_ssim = ssim(right_gt, right_gen)
-        this_lpips = lpips(right_gt, right_gen)
-
-        sample_config["right_psnr"] = this_psnr
-        all_right_psnr_scores.append(this_psnr)
-        sample_config["right_ssim"] = this_ssim
-        all_right_ssim_scores.append(this_ssim)
-        sample_config["right_lpips"] = this_lpips
-        all_right_lpips_scores.append(this_lpips)
-
-        # disparity
-        this_lpips1 = lpips(disparity_gt, disparity)
-        this_lpips2 = lpips(disparity_gt, depth_to_disparity)
-
-        sample_config["disp_lpips"] = this_lpips1
-        sample_config["depth-to-disp_lpips"] = this_lpips2
-        all_disp_lpips_scores.append(this_lpips1)
-        all_depth_to_disp_lpips_scores.append(this_lpips2)
-
-        save_config(sample_config, f"{inf_config['output_prefix']}sample_config.json")
-
         inf_config["output_prefix"] = root_output_prefix # revert overridden output prefix
-        counter += 1
 
     # save configs
     cfg_save_path = f"{inf_config['output_prefix']}cfg{os.sep}"
     os.makedirs(cfg_save_path, exist_ok=True)
-    mean = lambda x: float(np.mean(x))
-    eval_means_config = {
-        "mean_psnr_left": mean(all_left_psnr_scores),
-        "mean_ssim_left": mean(all_left_ssim_scores),
-        "mean_lpips_left": mean(all_left_lpips_scores),
-        "mean_psnr_right": mean(all_right_psnr_scores),
-        "mean_ssim_right": mean(all_right_ssim_scores),
-        "mean_lpips_right": mean(all_right_lpips_scores),
-        "mean_lpips_deph_to_disp": mean(all_depth_to_disp_lpips_scores),
-        "mean_lpips_disp": mean(all_disp_lpips_scores)
-    }
-    for t in [(inf_config, "inference_config.json"), (qpi_config, "qwen_config.json"), (eval_means_config, "eval_means_config.json")]:
+    for t in [(inf_config, "inference_config.json"), (qpi_config, "qwen_config.json")]:
         save_config(t[0], f"{cfg_save_path}{t[1]}")
 
