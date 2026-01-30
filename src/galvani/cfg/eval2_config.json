@@ -1,9 +1,9 @@
 {
     "depthmodel_path": "midas_models/dpt_hybrid-midas-501f0c75.pt",
     "verbose": true,
-    "dataset_path": "../../../data/eval/",
+    "dataset_path": "../../../data/eval",
     "dataset_depth": 2,
-    "dataset_max_samples": 1000,
+    "dataset_max_samples": 500,
     "shuffle_dataset": true,
     "shuffle_dataset_seed": 42,
     "output_prefix": "../../../out/eval2/",

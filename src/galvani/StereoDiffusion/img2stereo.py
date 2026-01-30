@@ -406,16 +406,16 @@ def get_dataset_samples_from_folder_tree(root_ptr, depth=1, files_to_get=["left.
         #   "sample_path": path/to/sample/in/dataset/
         # }
         sample_dict = {f: os.sep.join([sample_path, f]) for f in files_to_get}
-        sample_dict["sample_path"] = sample_path.lstrip(root_ptr)
+        sample_dict["sample_path"] = sample_path.replace(root_ptr, "")
         samples.append(sample_dict)
         counter += 1
-
-    if max_samples != None:
-        samples = samples[:max_samples]
 
     samples_indices = np.arange(len(samples))
     if shuffle:
         random.Random(shuffle_seed).shuffle(samples_indices)
+
+    if max_samples != None:
+        samples_indices = samples_indices[:max_samples]
     
     return samples, samples_indices
 
@@ -423,7 +423,7 @@ def get_dataset_samples_from_folder_tree(root_ptr, depth=1, files_to_get=["left.
 if __name__ == "__main__":
     # inf_config = get_config(path="../cfg/inference_config.json")
 
-    # --- in progress --- (random 1k samples)
+    # --- in progress --- (seed=42 1k samples)
     # eval1 no prompt | disparity | uni-directional | untrained
     # inf_config = get_config(path="../cfg/eval1_config.json")
 
@@ -436,18 +436,18 @@ if __name__ == "__main__":
     # eval4 prompt | disparity | uni-directional | untrained
     inf_config = get_config(path="../cfg/eval4_config.json")
 
-    # -- todo ---
+    # -- todo --- (seed=42 1k samples)
     # eval5 prompt | disparity | bi-directional | untrained
-    # inf_config = get_config(path="../cfg/inference_config.json")
+    # inf_config = get_config(path="../cfg/eval5_config.json")
 
     # eval6 prompt | disparity | cross | trained
-    # inf_config = get_config(path="../cfg/inference_config.json")
+    # inf_config = get_config(path="../cfg/eval6_config.json")
 
     # eval7 prompt | disparity | uni-directional | trained
-    # inf_config = get_config(path="../cfg/inference_config.json")
+    # inf_config = get_config(path="../cfg/eval7_config.json")
 
     # eval8 prompt | disparity | bi-directional | trained
-    # inf_config = get_config(path="../cfg/inference_config.json")
+    # inf_config = get_config(path="../cfg/eval8_config.json")
 
     qpi_config = get_config(path="../cfg/qwen_config.json")
     os.makedirs(inf_config["output_prefix"], exist_ok=True)
@@ -496,7 +496,7 @@ if __name__ == "__main__":
     for i in samples_indices:
         sample = samples[i]
 
-        print(f"--- processing sample {counter}/{len(samples)} ---")
+        print(f"--- processing sample {counter}/{len(samples_indices)} ---")
 
         left_img_path = sample["left.jpg"]
         metadata = get_config(sample["meta.json"])
@@ -520,8 +520,8 @@ if __name__ == "__main__":
         )
 
         if inf_config["use_conditioning_prompt"]:
-            reconstruction_prompt = f"{metadata['desc']}, captured with a stereo camera with baseline distance 0.0 and focal length {focal_length:.2f}"
-            conditioning_prompt = f"{metadata['desc']}, captured with a stereo camera with baseline distance {prompted_baseline:.2f} and focal length {focal_length:.2f}"
+            reconstruction_prompt = f"{metadata['desc'].rstrip('.')}, captured with a stereo camera with baseline distance 0.0 and focal length {focal_length:.2f}"
+            conditioning_prompt = f"{metadata['desc'].rstrip('.')}, captured with a stereo camera with baseline distance {prompted_baseline:.2f} and focal length {focal_length:.2f}"
         else:
             reconstruction_prompt = f""
             conditioning_prompt = f""
@@ -609,17 +609,17 @@ if __name__ == "__main__":
     # save configs
     cfg_save_path = f"{inf_config['output_prefix']}cfg{os.sep}"
     os.makedirs(cfg_save_path, exist_ok=True)
-    mean = lambda x: float(np.mean(x))
+    metrics = lambda x: [float(np.mean(x)), float(np.std(x))]
     eval_means_config = {
-        "mean_psnr_left": mean(all_left_psnr_scores),
-        "mean_ssim_left": mean(all_left_ssim_scores),
-        "mean_lpips_left": mean(all_left_lpips_scores),
-        "mean_psnr_right": mean(all_right_psnr_scores),
-        "mean_ssim_right": mean(all_right_ssim_scores),
-        "mean_lpips_right": mean(all_right_lpips_scores),
-        "mean_lpips_deph_to_disp": mean(all_depth_to_disp_lpips_scores),
-        "mean_lpips_disp": mean(all_disp_lpips_scores)
+        "mean_std_psnr_left": metrics(all_left_psnr_scores),
+        "mean_std_ssim_left": metrics(all_left_ssim_scores),
+        "mean_std_lpips_left": metrics(all_left_lpips_scores),
+        "mean_std_psnr_right": metrics(all_right_psnr_scores),
+        "mean_std_ssim_right": metrics(all_right_ssim_scores),
+        "mean_std_lpips_right": metrics(all_right_lpips_scores),
+        "mean_std_lpips_deph_to_disp": metrics(all_depth_to_disp_lpips_scores),
+        "mean_std_lpips_disp": metrics(all_disp_lpips_scores)
     }
-    for t in [(inf_config, "inference_config.json"), (qpi_config, "qwen_config.json"), (eval_means_config, "eval_means_config.json")]:
+    for t in [(inf_config, "inference_config.json"), (qpi_config, "qwen_config.json"), (eval_means_config, "eval_metrics_config.json")]:
         save_config(t[0], f"{cfg_save_path}{t[1]}")
 
