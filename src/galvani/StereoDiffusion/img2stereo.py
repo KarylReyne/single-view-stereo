@@ -215,6 +215,7 @@ def load_my_trained_lora(unet, cam_mlp, path):
             module.lora_B.load_state_dict(lora_state[name]["lora_B"])
     print("Gewichte erfolgreich geladen.")
 
+
 def get_baseline_and_focal_length(img_path, inf_config, qpi_config, baseline_prompt=None, metadata=None, verbose=False):
     # custom baseline distance and focal length
     prompted_baseline = None
