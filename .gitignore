@@ -30,6 +30,13 @@ out/**
 !out/eval*/cfg
 !out/eval*/cfg/*.json
 
+!out/eval*/*
+!out/eval*/*/Camera_0*
+!out/eval*/*/Camera_0*/*_gen.png
+!out/eval*/*/Camera_0*/*.json
+!out/eval*/*/Camera_100
+!out/eval*/*/Camera_100/*_gen.png
+!out/eval*/*/Camera_100/*.json
 
 # latex
 latex/**/*.aux

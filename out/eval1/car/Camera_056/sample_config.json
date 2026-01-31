@@ -1,0 +1,17 @@
+{
+    "sample_index": 1261,
+    "sample_path": "/car/Camera_056",
+    "baseline_prompt": null,
+    "reconstruction_prompt": "",
+    "conditioning_prompt": "",
+    "prompted_baseline": 0.14,
+    "focal_length": 45.251474164854365,
+    "left_psnr": 34.22594978065656,
+    "left_ssim": 0.9431344562211713,
+    "left_lpips": 0.011446251533925533,
+    "right_psnr": 18.277213410946693,
+    "right_ssim": 0.5714371561718199,
+    "right_lpips": 0.16056829690933228,
+    "disp_lpips": 0.05437283590435982,
+    "depth-to-disp_lpips": 0.05437176302075386
+}

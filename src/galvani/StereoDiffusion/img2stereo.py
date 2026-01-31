@@ -465,7 +465,7 @@ def get_dataset_samples_from_folder_tree(root_ptr, depth=1, files_to_get=["left.
 if __name__ == "__main__":
     # inf_config = get_config(path="../cfg/inference_config.json")
 
-    # --- in progress --- (seed=42 1k samples)
+    # --- done --- (seed=42 500 samples from [car dino piano_v2] -> ADD train for fullscale 1k eval!!!)
     # eval1 no prompt | disparity | uni-directional | untrained
     # inf_config = get_config(path="../cfg/eval1_config.json")
 
@@ -476,9 +476,10 @@ if __name__ == "__main__":
     # inf_config = get_config(path="../cfg/eval3_config.json")
 
     # eval4 prompt | disparity | uni-directional | untrained
-    inf_config = get_config(path="../cfg/eval4_config.json")
+    # inf_config = get_config(path="../cfg/eval4_config.json")
 
-    # -- todo --- (seed=42 1k samples)
+
+    # -- todo --- (seed=42 500 samples from [car dino piano_v2] -> ADD train for fullscale 1k eval!!!)
     # eval5 prompt | disparity | bi-directional | untrained
     # inf_config = get_config(path="../cfg/eval5_config.json")
 
@@ -655,7 +656,7 @@ if __name__ == "__main__":
     cfg_save_path = f"{inf_config['output_prefix']}cfg{os.sep}"
     os.makedirs(cfg_save_path, exist_ok=True)
     metrics = lambda x: [float(np.mean(x)), float(np.std(x))]
-    eval_means_config = {
+    eval_metrics_config = {
         "mean_std_psnr_left": metrics(all_left_psnr_scores),
         "mean_std_ssim_left": metrics(all_left_ssim_scores),
         "mean_std_lpips_left": metrics(all_left_lpips_scores),
@@ -665,6 +666,6 @@ if __name__ == "__main__":
         "mean_std_lpips_deph_to_disp": metrics(all_depth_to_disp_lpips_scores),
         "mean_std_lpips_disp": metrics(all_disp_lpips_scores)
     }
-    for t in [(inf_config, "inference_config.json"), (qpi_config, "qwen_config.json"), (eval_means_config, "eval_metrics_config.json")]:
+    for t in [(inf_config, "inference_config.json"), (qpi_config, "qwen_config.json"), (eval_metrics_config, "eval_metrics_config.json")]:
         save_config(t[0], f"{cfg_save_path}{t[1]}")
 

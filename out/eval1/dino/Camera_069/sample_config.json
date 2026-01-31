@@ -1,0 +1,17 @@
+{
+    "sample_index": 593,
+    "sample_path": "/dino/Camera_069",
+    "baseline_prompt": null,
+    "reconstruction_prompt": "",
+    "conditioning_prompt": "",
+    "prompted_baseline": 0.1,
+    "focal_length": 44.32518174098846,
+    "left_psnr": 34.54852289434536,
+    "left_ssim": 0.9626019282504775,
+    "left_lpips": 0.011555873788893223,
+    "right_psnr": 21.229762826234314,
+    "right_ssim": 0.684743154218618,
+    "right_lpips": 0.09764788299798965,
+    "disp_lpips": 0.07923923432826996,
+    "depth-to-disp_lpips": 0.07923994213342667
+}

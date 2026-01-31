@@ -1,0 +1,17 @@
+{
+    "sample_index": 2237,
+    "sample_path": "/piano_v2/Camera_020",
+    "baseline_prompt": null,
+    "reconstruction_prompt": "",
+    "conditioning_prompt": "",
+    "prompted_baseline": 0.08,
+    "focal_length": 39.345116622034105,
+    "left_psnr": 37.47528954870839,
+    "left_ssim": 0.9275768820485862,
+    "left_lpips": 0.008565674535930157,
+    "right_psnr": 20.609763833621223,
+    "right_ssim": 0.6745520750655468,
+    "right_lpips": 0.11807271838188171,
+    "disp_lpips": 0.07723428308963776,
+    "depth-to-disp_lpips": 0.07723389565944672
+}

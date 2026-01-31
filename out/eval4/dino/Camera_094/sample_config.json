@@ -1,0 +1,17 @@
+{
+    "sample_index": 414,
+    "sample_path": "/dino/Camera_094",
+    "baseline_prompt": null,
+    "reconstruction_prompt": "A Tyrannosaurus rex skeleton in a museum, captured with a stereo camera with baseline distance 0.0 and focal length 46.02",
+    "conditioning_prompt": "A Tyrannosaurus rex skeleton in a museum, captured with a stereo camera with baseline distance 0.06 and focal length 46.02",
+    "prompted_baseline": 0.06,
+    "focal_length": 46.01581639049994,
+    "left_psnr": 30.59726480128068,
+    "left_ssim": 0.9082371201929353,
+    "left_lpips": 0.0269013624638319,
+    "right_psnr": 21.71427347014064,
+    "right_ssim": 0.6532787054502537,
+    "right_lpips": 0.07983824610710144,
+    "disp_lpips": 0.08186855167150497,
+    "depth-to-disp_lpips": 0.08186882734298706
+}

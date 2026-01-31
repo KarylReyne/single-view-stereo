@@ -1,0 +1,17 @@
+{
+    "sample_index": 2864,
+    "sample_path": "/piano_v2/Camera_095",
+    "baseline_prompt": null,
+    "reconstruction_prompt": "A piano in a museum, captured with a stereo camera with baseline distance 0.0 and focal length 43.31",
+    "conditioning_prompt": "A piano in a museum, captured with a stereo camera with baseline distance 0.10 and focal length 43.31",
+    "prompted_baseline": 0.1,
+    "focal_length": 43.308902642072425,
+    "left_psnr": 28.54157988244957,
+    "left_ssim": 0.8586508463961423,
+    "left_lpips": 0.04317273944616318,
+    "right_psnr": 17.218431116376976,
+    "right_ssim": 0.5678649448865847,
+    "right_lpips": 0.1531168818473816,
+    "disp_lpips": 0.05958250164985657,
+    "depth-to-disp_lpips": 0.059581879526376724
+}

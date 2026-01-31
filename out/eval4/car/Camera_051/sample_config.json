@@ -1,0 +1,17 @@
+{
+    "sample_index": 1313,
+    "sample_path": "/car/Camera_051",
+    "baseline_prompt": null,
+    "reconstruction_prompt": "A vintage car in a museum, captured with a stereo camera with baseline distance 0.0 and focal length 45.50",
+    "conditioning_prompt": "A vintage car in a museum, captured with a stereo camera with baseline distance 0.10 and focal length 45.50",
+    "prompted_baseline": 0.1,
+    "focal_length": 45.49876568138771,
+    "left_psnr": 33.163013862511406,
+    "left_ssim": 0.9363071865083166,
+    "left_lpips": 0.011928858235478401,
+    "right_psnr": 20.116687259725087,
+    "right_ssim": 0.6562840026121387,
+    "right_lpips": 0.1188250482082367,
+    "disp_lpips": 0.07173261791467667,
+    "depth-to-disp_lpips": 0.07173285633325577
+}
