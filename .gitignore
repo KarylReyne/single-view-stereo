@@ -37,6 +37,9 @@ out/**
 !out/eval*/*/Camera_100
 !out/eval*/*/Camera_100/*_gen.png
 !out/eval*/*/Camera_100/*.json
+!out/eval*/*/Camera_09*/disparity_maps
+!out/eval*/*/Camera_09*/disparity_maps/*
+
 
 # latex
 latex/**/*.aux
