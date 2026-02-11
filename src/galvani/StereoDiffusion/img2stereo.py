@@ -13,7 +13,7 @@ from skimage.metrics import structural_similarity, peak_signal_noise_ratio
 from torchmetrics.image.lpip import LearnedPerceptualImagePatchSimilarity
 from torch.nn.functional import normalize
 import random
-from lora_smoke_train import inject_lora_into_unet_attention, CameraCondMLP, LoRALinear, lora_parameters
+
 sys.path.append('./DensePredictionTransformer')
 from DensePredictionTransformer.dpt.models import DPTDepthModel
 from stereoutils import stereo_shift_torch, norm_depth, BNAttention, register_attention_editor_diffusers, load_512, load_exr
@@ -27,11 +27,12 @@ from QwenPromptInterpreter.prompt2float import interpret_prompt
 from misc_util import get_config, add_subfolder_to_save_prefix, save_config
 from ptp_save_util import save_images, save_cross_attention, save_hist_from_array, save_generated_stereoimages
 from stereodiffusion_nti import EmptyControl, NullInversion
+from lora_smoke_train import inject_lora_into_unet_attention, CameraCondMLP, LoRALinear, lora_parameters
 
 
 def run_and_display(
     ldm_stable, prompts, controller, disparity, inf_config,
-    cam_mlp, prompted_baseline, focal_length, # NEU hinzufügen
+    cam_mlp, camera_params, # NEU hinzufügen
     latent=None, run_baseline=False, generator=None, uncond_embeddings=None, verbose=True,
 ):
     if run_baseline:
@@ -44,6 +45,8 @@ def run_and_display(
             EmptyControl(),
             disparity,
             inf_config,
+            cam_mlp,
+            camera_params,
             latent=torch.concat([latent,latent],0),
             run_baseline=False, 
             generator=generator, 
@@ -59,9 +62,8 @@ def run_and_display(
         disparity,
         inf_config,
         cam_mlp=cam_mlp,                    # NEU
-        prompted_baseline=prompted_baseline, # NEU
-        focal_length=focal_length,
-        uncond_embeddings=uncond_embeddings, 
+        camera_params=camera_params,
+        uncond_embeddings=uncond_embeddings,
         latent=latent,
         verbose=verbose
     )
@@ -77,8 +79,7 @@ def text2stereoimage_ldm_stable(
     disparity,
     inf_config,
     cam_mlp,          
-    prompted_baseline, 
-    focal_length,       
+    camera_params,       
     generator: Optional[torch.Generator] = None,
     latent: Optional[torch.FloatTensor] = None,
     uncond_embeddings=None,
@@ -113,27 +114,34 @@ def text2stereoimage_ldm_stable(
         uncond_embeddings_ = model.text_encoder(uncond_input.input_ids.to(model.device))[0]
     else:
         uncond_embeddings_ = None
-        
-    b_n = torch.tensor([prompted_baseline / 0.14], device=model.device).float()
-    f_n = torch.tensor([focal_length / 40.0], device=model.device).float()
 
-    with torch.no_grad():
-        # cam_mlp muss als Parameter an diese Funktion übergeben werden!
-        cam_vec = cam_mlp(b_n, f_n) # Ergebnis: [1, 768]
-        
-        # In StereoDiffusion ist batch_size=2: [Links, Rechts]
-        # Wir addieren das gelernten Verschiebe-Signal NUR auf das rechte Bild (Index 1)
-        if text_embeddings.shape[0] > 1:
-            text_embeddings[1:2] = text_embeddings[1:2] + cam_vec.unsqueeze(1)
+    if inf_config["use_lora_weights_for_shifting"]:
+        b_n = torch.tensor([camera_params[0] / 0.14], device=model.device).float()
+        f_n = torch.tensor([camera_params[1] / 40.0], device=model.device).float()
 
+        with torch.no_grad():
+            # cam_mlp muss als Parameter an diese Funktion übergeben werden!
+            cam_vec = cam_mlp(b_n, f_n) # Ergebnis: [1, 768]
+            
+            # In StereoDiffusion ist batch_size=2: [Links, Rechts]
+            # Wir addieren das gelernten Verschiebe-Signal NUR auf das rechte Bild (Index 1)
+            if text_embeddings.shape[0] > 1:
+                text_embeddings[1:2] = text_embeddings[1:2] + cam_vec.unsqueeze(1)
+    
+    
+    save_images(ptp_utils.latent2image(model.vae, latent), f'{inf_config["output_prefix"]}latent.png')
+    exit()
+    
     latent, latents = ptp_utils.init_latent(latent, model, height, width, generator, batch_size)
 
-    _latents_init = ptp_utils.latent2image(model.vae, latents)
     if verbose:
+        _latents_init = ptp_utils.latent2image(model.vae, latents)
         save_images(_latents_init, f'{inf_config["output_prefix"]}initial_latents.png')
 
     model.scheduler.set_timesteps(inf_config["num_ddim_steps"])
+
     for i, t in enumerate(tqdm(model.scheduler.timesteps[-inf_config["num_ddim_steps"]:])):
+
         if uncond_embeddings_ is None:
             context = torch.cat([uncond_embeddings[i].expand(*text_embeddings.shape), text_embeddings])
         else:
@@ -146,17 +154,35 @@ def text2stereoimage_ldm_stable(
         
         # also reconstruct a right-side stereo image (StereoDiffusion)
         if i == latents_editing_freq:
-            pass
-            # if isinstance(disparity,torch.Tensor):
-            #     disparity = torch.nn.functional.interpolate(disparity.unsqueeze(1),size=[64,64],mode="bicubic",align_corners=False,).squeeze(1)
-            # elif isinstance(disparity,np.ndarray):
-            #     disparity = resize(disparity,(64,64))
+
+            if not inf_config["use_lora_weights_for_shifting"]:
+                if isinstance(disparity,torch.Tensor):
+                    disparity = torch.nn.functional.interpolate(disparity.unsqueeze(1),size=[64,64],mode="bicubic",align_corners=False,).squeeze(1)
+                elif isinstance(disparity,np.ndarray):
+                    disparity = resize(disparity,(64,64))
             
-            scale_factor_percent = 8
+            left_latent = None
+            if inf_config["align_right_with_gt"]:
+                left_latent = ptp_utils.image2latent(model.vae, image_gt)
+                left_noise = torch.randn_like(left_latent)
+                left_latent = model.scheduler.add_noise(
+                    left_latent,
+                    left_noise,
+                    torch.Tensor([model.scheduler.timesteps[t]])
+                )
+                if verbose:
+                    _left_latent = ptp_utils.latent2image(model.vae, left_latent)
+                    save_images(_left_latent, f'{inf_config["output_prefix"]}left-latent_from_gt_at-t={t}.png')
+            else:
+                left_latent = latents[:1] # generated left
+                if verbose:
+                    _left_latent = ptp_utils.latent2image(model.vae, left_latent)
+                    save_images(_left_latent, f'{inf_config["output_prefix"]}left-latent_from_gen_at-t={t}.png')
+
             latents_current = stereo_shift_torch(
-                latents[:1], # left latent
+                left_latent, 
                 disparity, 
-                scale_factor_percent=scale_factor_percent
+                scale_factor_percent=8
             )
             latents_current = latents_current[1:] # latents_current <- right latent
             latents = torch.cat([latents[:1], latents_current], 0) # [left latent, left latent shifted (right latent)]
@@ -170,28 +196,47 @@ def text2stereoimage_ldm_stable(
             noise = torch.randn_like(latents)
 
             if verbose:
-                _mask = mask
-                _mask = ptp_utils.latent2image(model.vae, _mask)
+                _mask = ptp_utils.latent2image(model.vae, mask)
                 save_images(_mask, f'{inf_config["output_prefix"]}denoising-mask.png')
 
             if inf_config["stereodiffusion_deblur"]:
                 latents[1:][~mask] = noise[1:][~mask]
                 latents[1:][mask] = latents_current[mask]
 
-        if  (i > latents_editing_freq and i % latents_editing_freq == 0):
-            pass
-            # latents_current = stereo_shift_torch(
-            #     latents[:1], # left latent
-            #     disparity, 
-            #     scale_factor_percent=scale_factor_percent
-            # )
-            # latents_current = latents_current[1:] # latents_current <- right latent
-            # latents[1:][mask] = latents_current[mask] # prev right latent * mask <- curr right latent * mask
-            
-            # if verbose:
-            #     _latents_masked = ptp_utils.latent2image(model.vae, latents)
-            #     save_images(_latents_masked, f'{inf_config["output_prefix"]}latents-with-applied-mask_at_t={t}.png')
+        if  (i > latents_editing_freq and i % latents_editing_freq == 0) and not inf_config["use_lora_weights_for_shifting"]:
+            left_latent = None
+            if inf_config["align_right_with_gt"]:
+                left_latent = ptp_utils.image2latent(model.vae, image_gt)
+                left_noise = torch.randn_like(left_latent)
+                left_latent = model.scheduler.add_noise(
+                    left_latent,
+                    left_noise,
+                    torch.Tensor([model.scheduler.timesteps[t]])
+                )
+                if verbose:
+                    _left_latent = ptp_utils.latent2image(model.vae, left_latent)
+                    save_images(_left_latent, f'{inf_config["output_prefix"]}left-latent_from_gt_at-t={t}.png')
+            else:
+                left_latent = latents[:1] # generated left
+                if verbose:
+                    _left_latent = ptp_utils.latent2image(model.vae, left_latent)
+                    save_images(_left_latent, f'{inf_config["output_prefix"]}left-latent_from_gen_at-t={t}.png')
 
+            latents_current = stereo_shift_torch(
+                left_latent,
+                disparity, 
+                scale_factor_percent=8
+            )
+            latents_current = latents_current[1:] # latents_current <- right latent
+            latents[1:][mask] = latents_current[mask] # prev right latent * mask <- curr right latent * mask
+            
+            if verbose:
+                _latents_masked = ptp_utils.latent2image(model.vae, latents)
+                save_images(_latents_masked, f'{inf_config["output_prefix"]}latents-with-applied-mask_at_t={t}.png')
+
+    if inf_config["align_right_with_gt"]:
+        left_latent = ptp_utils.image2latent(model.vae, image_gt)
+        latents[:1] = left_latent
         
     if return_type == 'image':
         image = ptp_utils.latent2image(model.vae, latents)
@@ -297,11 +342,12 @@ def run_inv_sd(
     depthmodel,
     disparitymodel,
     inf_config,
-    cam_mlp,     
-    prompted_baseline, 
-    focal_length,
+    cam_mlp=None,
     verbose=False
 ):
+    if inf_config["use_lora_weights_for_shifting"]:
+        assert cam_mlp != None
+
     reconstruction_prompt = prompts[0]
     image = load_512(img_path)
     null_inversion = NullInversion(ldm_stable, inf_config)
@@ -345,9 +391,8 @@ def run_inv_sd(
         disp, 
         inf_config,
         cam_mlp=cam_mlp,                  # Korrekte Übergabe
-        prompted_baseline=prompted_baseline,
-        focal_length=focal_length,
-        run_baseline=False, 
+        camera_params=camera_params,
+        run_baseline=False,
         latent=x_t, 
         uncond_embeddings=uncond_embeddings,
         verbose=verbose
@@ -378,13 +423,15 @@ def get_models(inf_config):
         ldm_stable.disable_xformers_memory_efficient_attention()
     except AttributeError:
         print("Attribute disable_xformers_memory_efficient_attention() is missing")
-        
-    inject_lora_into_unet_attention(ldm_stable.unet, rank=8, alpha=8.0)
-    cam_mlp = CameraCondMLP(use_focal=True).to(inf_config["device"])
-    lora_path = "./lora_smoke.pt"
-    if not os.path.exists(lora_path):
-        raise FileNotFoundError(f"LoRA file not found at {lora_path}")
-    load_my_trained_lora(ldm_stable.unet, cam_mlp, lora_path)
+    
+    cam_mlp = None
+    if inf_config["use_lora_weights_for_shifting"]:
+        inject_lora_into_unet_attention(ldm_stable.unet, rank=8, alpha=8.0)
+        cam_mlp = CameraCondMLP(use_focal=True).to(inf_config["device"])
+        lora_path = "./lora_smoke.pt"
+        if not os.path.exists(lora_path):
+            raise FileNotFoundError(f"LoRA file not found at {lora_path}")
+        load_my_trained_lora(ldm_stable.unet, cam_mlp, lora_path)
 
     depthmodel = DPTDepthModel(
         path=inf_config["depthmodel_path"],
@@ -463,7 +510,7 @@ def get_dataset_samples_from_folder_tree(root_ptr, depth=1, files_to_get=["left.
 
 
 if __name__ == "__main__":
-    # inf_config = get_config(path="../cfg/inference_config.json")
+    inf_config = get_config(path="../cfg/inference_config.json")
 
     # --- done --- (seed=42 500 samples from [car dino piano_v2] -> ADD train for fullscale 1k eval!!!)
     # eval1 no prompt | disparity | uni-directional | untrained
@@ -497,7 +544,7 @@ if __name__ == "__main__":
 
     verbose=inf_config["verbose"]
 
-    ldm_stable, depthmodel, disparitymodel = get_models(inf_config)
+    ldm_stable, depthmodel, disparitymodel, cam_mlp = get_models(inf_config)
 
     samples, samples_indices = get_dataset_samples_from_folder_tree(
         inf_config["dataset_path"],
@@ -512,8 +559,9 @@ if __name__ == "__main__":
 
     psnr = lambda x, y: float(peak_signal_noise_ratio(x, y, data_range=255))
     ssim = lambda x, y: float(structural_similarity(x, y, data_range=255, channel_axis=-1))
-    def lpips(x, y, device=inf_config["device"]):
-        _lpips = LearnedPerceptualImagePatchSimilarity(net_type='squeeze', normalize=True).to(device)
+    _lpips = LearnedPerceptualImagePatchSimilarity(net_type='squeeze', normalize=True).to(inf_config["device"])
+    
+    def lpips(x, y, _lpips=_lpips, device=inf_config["device"]):
         if isinstance(x, np.ndarray): x = torch.Tensor(x).to(device)
         if isinstance(y, np.ndarray): y = torch.Tensor(y).to(device)
         x = normalize(x)
@@ -606,9 +654,7 @@ if __name__ == "__main__":
             depthmodel,
             disparitymodel,
             inf_config,
-            cam_mlp=cam_mlp,              # HINZUFÜGEN
-            prompted_baseline=prompted_baseline, # HINZUFÜGEN
-            focal_length=focal_length,
+            cam_mlp=cam_mlp,
             verbose=verbose
         )
 

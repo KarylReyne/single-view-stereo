@@ -1,12 +1,12 @@
 {
     "depthmodel_path": "midas_models/dpt_hybrid-midas-501f0c75.pt",
-    "verbose": true,
-    "dataset_path": "../../../data/eval",
+    "verbose": false,
+    "dataset_path": "../../../data/eval2",
     "dataset_depth": 2,
-    "dataset_max_samples": 1000,
+    "dataset_max_samples": 10,
     "shuffle_dataset": true,
     "shuffle_dataset_seed": 42,
-    "output_prefix": "../../../out/eval/",
+    "output_prefix": "../../../out/eval_test/",
     "depthmap_from_prompt": false,
     "depthmap_from_sensor": true,
     "use_depth-to-disparity": false,
@@ -23,5 +23,7 @@
     "guidance_scale": 7.5,
     "num_ddim_steps": 50,
     "max_num_words": 77,
-    "low_resource": false
+    "low_resource": false,
+    "use_lora_weights_for_shifting": false,
+    "align_right_with_gt": true
 }

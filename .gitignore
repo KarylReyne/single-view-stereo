@@ -10,6 +10,7 @@ data/galvani/**
 !data/galvani/image_collection
 !data/galvani/image_collection/**/*
 data/eval/**
+data/eval2/**
 data/*.zip
 
 # models
