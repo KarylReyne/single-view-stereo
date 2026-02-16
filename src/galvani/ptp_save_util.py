@@ -38,10 +38,12 @@ def save_images(images, path, num_rows=1, offset_ratio=0.02):
     Image.fromarray(image_).save(path)
 
 
-def save_generated_stereoimages(images, output_prefix):
+def save_generated_stereoimages(images, inf_config):
     images = [image.astype(np.uint8) for image in images]
-    paths = [f"{output_prefix}{s}_gen.png" for s in ["left", "right"]]
-
+    paths = [
+        f"{inf_config['output_prefix']}left_{'gt' if inf_config['align_right_with_gt'] else 'gen'}.png",
+        f"{inf_config['output_prefix']}right_gen.png"
+    ]
     for i in range(len(images)):
         Image.fromarray(images[i]).save(paths[i])
 

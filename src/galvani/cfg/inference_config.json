@@ -3,7 +3,7 @@
     "verbose": false,
     "dataset_path": "../../../data/eval2",
     "dataset_depth": 2,
-    "dataset_max_samples": 10,
+    "dataset_max_samples": 1,
     "shuffle_dataset": true,
     "shuffle_dataset_seed": 42,
     "output_prefix": "../../../out/eval_test/",
@@ -24,6 +24,7 @@
     "num_ddim_steps": 50,
     "max_num_words": 77,
     "low_resource": false,
+    "lora_path": "lora_smoke.pt",
     "use_lora_weights_for_shifting": false,
-    "align_right_with_gt": true
+    "align_right_with_gt": false
 }

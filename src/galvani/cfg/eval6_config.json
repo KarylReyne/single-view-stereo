@@ -6,10 +6,10 @@
     "dataset_max_samples": 1000,
     "shuffle_dataset": true,
     "shuffle_dataset_seed": 42,
-    "output_prefix": "../../../out/eval2/",
+    "output_prefix": "../../../out/eval6/",
     "depthmap_from_prompt": false,
     "depthmap_from_sensor": true,
-    "use_depth-to-disparity": true,
+    "use_depth-to-disparity": false,
     "use_cross_attn": false,
     "use_conditioning_prompt": false,
     "use_baseline_prompt": false,
@@ -25,6 +25,6 @@
     "max_num_words": 77,
     "low_resource": false,
     "lora_path": "lora_smoke.pt",
-    "use_lora_weights_for_shifting": false,
+    "use_lora_weights_for_shifting": true,
     "align_right_with_gt": false
 }

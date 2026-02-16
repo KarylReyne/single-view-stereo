@@ -183,7 +183,7 @@ class NullInversion:
         if verbose:
             print("Null-text optimization...")
         uncond_embeddings = self.null_optimization(ddim_latents, num_inner_steps, early_stop_epsilon)
-        return (image_gt, image_rec), ddim_latents[-1], uncond_embeddings
+        return (image_gt, image_rec), ddim_latents, uncond_embeddings
         
     
     def __init__(self, model, config):
