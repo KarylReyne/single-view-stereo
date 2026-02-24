@@ -6,7 +6,7 @@
     "dataset_max_samples": 1000,
     "shuffle_dataset": true,
     "shuffle_dataset_seed": 42,
-    "output_prefix": "../../../out/eval7/",
+    "output_prefix": "../../../out/eval1/",
     "depthmap_from_prompt": false,
     "depthmap_from_sensor": true,
     "use_depth-to-disparity": false,
@@ -26,5 +26,5 @@
     "low_resource": false,
     "lora_path": "lora_smoke.pt",
     "use_lora_weights_for_shifting": false,
-    "align_right_with_gt": true
+    "align_right_with_gt": false
 }

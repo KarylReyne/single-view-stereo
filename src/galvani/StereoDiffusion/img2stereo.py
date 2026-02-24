@@ -490,18 +490,20 @@ def get_dataset_samples_from_folder_tree(root_ptr, depth=1, files_to_get=["left.
 if __name__ == "__main__":
     # inf_config = get_config(path="../cfg/inference_config.json")
 
-    # --- todo --- seed=42, 1k samples
+    # --- done --- seed=42, 1k samples
     # eval1 no prompt | disparity | uni-directional | untrained | gen aligned
     # inf_config = get_config(path="../cfg/eval1_config.json")
-
-    # eval2 no prompt | depth-to-disparity | uni-directional | untrained | gen aligned
-    # inf_config = get_config(path="../cfg/eval2_config.json")
 
     # eval3 prompt | disparity | cross | untrained | gen aligned
     # inf_config = get_config(path="../cfg/eval3_config.json")
 
     # eval4 prompt | disparity | uni-directional | untrained | gen aligned
-    inf_config = get_config(path="../cfg/eval4_config.json")
+    # inf_config = get_config(path="../cfg/eval4_config.json")
+
+
+    # --- todo --- seed=42, 1k samples
+    # eval2 no prompt | depth-to-disparity | uni-directional | untrained | gen aligned
+    # inf_config = get_config(path="../cfg/eval2_config.json")
 
     # eval5 prompt | disparity | bi-directional | untrained | gen aligned
     # inf_config = get_config(path="../cfg/eval5_config.json")
@@ -511,6 +513,9 @@ if __name__ == "__main__":
 
     # eval7 no prompt | disparity | uni-directional | untrained | gt aligned
     # inf_config = get_config(path="../cfg/eval1_config.json")
+
+    # eval8 prompt | disparity | uni-directional | untrained | gt aligned
+    # inf_config = get_config(path="../cfg/eval8_config.json")
 
     qpi_config = get_config(path="../cfg/qwen_config.json")
     os.makedirs(inf_config["output_prefix"], exist_ok=True)

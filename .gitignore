@@ -31,19 +31,19 @@ out/**
 !out/eval*/cfg
 !out/eval*/cfg/*.json
 
-!out/eval*/*
-!out/eval*/*/Camera_0*
-!out/eval*/*/Camera_0*/*_gen.png
-!out/eval*/*/Camera_0*/*.json
-!out/eval*/*/Camera_100
-!out/eval*/*/Camera_100/*_gen.png
-!out/eval*/*/Camera_100/*.json
-!out/eval*/*/Camera_09*/disparity_maps
-!out/eval*/*/Camera_09*/disparity_maps/*
+# !out/eval*/*
+# !out/eval*/*/Camera_0*
+# !out/eval*/*/Camera_0*/*_gen.png
+# !out/eval*/*/Camera_0*/*.json
+# !out/eval*/*/Camera_100
+# !out/eval*/*/Camera_100/*_gen.png
+# !out/eval*/*/Camera_100/*.json
+# !out/eval*/*/Camera_09*/disparity_maps
+# !out/eval*/*/Camera_09*/disparity_maps/*
 
-!data/galvani/fixed_baselines
-!data/galvani/fixed_baselines/00*
-!data/galvani/fixed_baselines/00*/*
+# !data/galvani/fixed_baselines
+# !data/galvani/fixed_baselines/00*
+# !data/galvani/fixed_baselines/00*/*
 
 # latex
 latex/**/*.aux
