@@ -107,7 +107,7 @@ class LoRALinear(nn.Module):
     Wraps a frozen nn.Linear with trainable low-rank adapters.
     y = linear(x) + scale * (x @ A^T @ B^T)
     """
-    def __init__(self, base: nn.Linear, rank: int = 8, alpha: float = 8.0):
+    def __init__(self, base: nn.Linear, rank: int = 8, alpha: float = 8.0, device=DEVICE):
         super().__init__()
         assert isinstance(base, nn.Linear)
         self.base = base
@@ -122,8 +122,8 @@ class LoRALinear(nn.Module):
         self.scale = alpha / rank
 
         # LoRA params
-        self.lora_A = nn.Linear(in_f, rank, bias=False)
-        self.lora_B = nn.Linear(rank, out_f, bias=False)
+        self.lora_A = nn.Linear(in_f, rank, bias=False, device=device)
+        self.lora_B = nn.Linear(rank, out_f, bias=False, device=device)
 
         # init: A ~ N(0,0.01), B = 0 so start as no-op
         nn.init.normal_(self.lora_A.weight, std=0.01)
@@ -144,17 +144,17 @@ def inject_lora_into_unet_attention(unet: UNet2DConditionModel, rank=8, alpha=8.
     for name, module in unet.named_modules():
         # CrossAttention in diffusers has these attributes
         if hasattr(module, "to_q") and isinstance(module.to_q, nn.Linear):
-            module.to_q = LoRALinear(module.to_q, rank=rank, alpha=alpha)
+            module.to_q = LoRALinear(module.to_q, rank=rank, alpha=alpha, device=unet.device)
             patched.append(f"{name}.to_q")
         if hasattr(module, "to_k") and isinstance(module.to_k, nn.Linear):
-            module.to_k = LoRALinear(module.to_k, rank=rank, alpha=alpha)
+            module.to_k = LoRALinear(module.to_k, rank=rank, alpha=alpha, device=unet.device)
             patched.append(f"{name}.to_k")
         if hasattr(module, "to_v") and isinstance(module.to_v, nn.Linear):
-            module.to_v = LoRALinear(module.to_v, rank=rank, alpha=alpha)
+            module.to_v = LoRALinear(module.to_v, rank=rank, alpha=alpha, device=unet.device)
             patched.append(f"{name}.to_v")
         if hasattr(module, "to_out") and isinstance(module.to_out, nn.ModuleList) and len(module.to_out) > 0:
             if isinstance(module.to_out[0], nn.Linear):
-                module.to_out[0] = LoRALinear(module.to_out[0], rank=rank, alpha=alpha)
+                module.to_out[0] = LoRALinear(module.to_out[0], rank=rank, alpha=alpha, device=unet.device)
                 patched.append(f"{name}.to_out.0")
     return patched
 

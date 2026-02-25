@@ -22,7 +22,7 @@ pip install diffusers==0.35.2 transformers==4.57.1 lightning-utilities==0.15.2 t
 ```
 
 ### activate both envs
-<!-- for galvani only: conda deactivate -->
+<!-- for galvani only: conda activate /home/geiger/gwb204/miniconda3/envs/stereoview -->
 ```
 conda activate stereoview
 . ./stereoview-venv/bin/activate

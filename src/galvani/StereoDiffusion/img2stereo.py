@@ -501,19 +501,25 @@ if __name__ == "__main__":
     # inf_config = get_config(path="../cfg/eval4_config.json")
 
 
-    # --- todo --- seed=42, 1k samples
+    # --- in progress --- seed=42, 1k samples
+    # at eval1
     # eval2 no prompt | depth-to-disparity | uni-directional | untrained | gen aligned
     # inf_config = get_config(path="../cfg/eval2_config.json")
 
+    # at eval2
     # eval5 prompt | disparity | bi-directional | untrained | gen aligned
     # inf_config = get_config(path="../cfg/eval5_config.json")
 
+    # at eval3
     # eval6 no prompt | disparity | uni-directional | trained | gen aligned
+    # inf_config = get_config(path="../cfg/eval6_config.json")
+
+    # at eval4
+    # eval7 no prompt | disparity | uni-directional | untrained | gt aligned
     # inf_config = get_config(path="../cfg/eval7_config.json")
 
-    # eval7 no prompt | disparity | uni-directional | untrained | gt aligned
-    # inf_config = get_config(path="../cfg/eval1_config.json")
 
+    # --- todo --- seed=42, 1k samples
     # eval8 prompt | disparity | uni-directional | untrained | gt aligned
     # inf_config = get_config(path="../cfg/eval8_config.json")
 
