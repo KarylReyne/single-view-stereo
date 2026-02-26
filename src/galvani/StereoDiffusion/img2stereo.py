@@ -512,6 +512,8 @@ if __name__ == "__main__":
 
     # --- in progress --- seed=42, 1k samples
     # at eval1
+    # eval8 prompt | disparity | uni-directional | untrained | gt aligned
+    inf_config = get_config(path="../cfg/eval8_config.json")
 
     # at eval2
     # eval5 prompt | disparity | bi-directional | untrained | gen aligned
@@ -523,8 +525,7 @@ if __name__ == "__main__":
 
 
     # --- todo --- seed=42, 1k samples
-    # eval8 prompt | disparity | uni-directional | untrained | gt aligned
-    # inf_config = get_config(path="../cfg/eval8_config.json")
+    
 
     qpi_config = get_config(path="../cfg/qwen_config.json")
     os.makedirs(inf_config["output_prefix"], exist_ok=True)
