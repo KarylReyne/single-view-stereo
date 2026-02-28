@@ -1,0 +1,5 @@
+{
+    "model_path": "models/qwen2.5_7b_instruct",
+    "device": "cuda:0",
+    "temperature": 0.8
+}
