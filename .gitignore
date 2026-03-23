@@ -60,4 +60,6 @@ latex/**/*.snm
 latex/**/*.gz
 latex/**/*.toc
 latex/**/*.pdf
+!latex/report_template/figures/
+!latex/report_template/figures/*.pdf
 
