@@ -60,7 +60,7 @@ if __name__ == "__main__":
                         align="edge",
                         label=f"eval{eval_idx}"
                     )
-                    if eval_idx == 5: label_xpos = bar_xpos
+                    if eval_idx == 5: label_xpos = [pos-(BW/2) for pos in bar_xpos]
                     bar_xpos = [pos+BW for pos in bar_xpos]
 
             title_prefix = "Average" if metric_distribution_characteristic == "mean" else "Std. of"
