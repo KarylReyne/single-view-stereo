@@ -51,16 +51,17 @@ if __name__ == "__main__":
             bar_xpos = range(3)
             label_xpos = None
             for eval_idx in range(1,9):
-                ax.bar(
-                    bar_xpos,
-                    [scores_per_metric[key][eval_idx-1] for key in scores_per_metric],
-                    width=BW,
-                    color=get_next_tue_plot_color(eval_idx),
-                    align="edge",
-                    label=f"eval{eval_idx}"
-                )
-                if eval_idx == 5: label_xpos = bar_xpos
-                bar_xpos = [pos+BW for pos in bar_xpos]
+                if eval_idx != 6:
+                    ax.bar(
+                        bar_xpos,
+                        [scores_per_metric[key][eval_idx-1] for key in scores_per_metric],
+                        width=BW,
+                        color=get_next_tue_plot_color(eval_idx-1),
+                        align="edge",
+                        label=f"eval{eval_idx}"
+                    )
+                    if eval_idx == 5: label_xpos = bar_xpos
+                    bar_xpos = [pos+BW for pos in bar_xpos]
 
             title_prefix = "Average" if metric_distribution_characteristic == "mean" else "Std. of"
             ax.set_title(f"{title_prefix} generation quality scores ({image} image)", fontsize=FONTSIZE)
