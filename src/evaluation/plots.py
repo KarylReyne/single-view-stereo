@@ -77,3 +77,50 @@ if __name__ == "__main__":
 
             # fig.tight_layout()
             fig.savefig(SAVE_DIR+f"eval_quality_{image}_{metric_distribution_characteristic}.pdf")
+
+
+    FIG_W = 13
+    LEGEND_OFFSET_X = 1.138
+
+    scores_per_eval = []
+    for i in range(8):
+        eval_dict = results[i]
+        if i in [6, 7]:
+            scores_per_eval.append([
+                1.0, # dirty trick ;)
+                eval_dict[f"mean_std_ssim_right"][0]
+            ])
+        else:
+            scores_per_eval.append([
+                eval_dict[f"mean_std_ssim_left"][0],
+                eval_dict[f"mean_std_ssim_right"][0]
+            ])
+
+    fig, ax = plt.subplots(figsize=(FIG_W,FIG_H))
+    bar_xpos = range(7) # -eval6
+    label_xpos = None
+    for image in [0, 1]:
+        ax.bar(
+            bar_xpos,
+            [scores_per_eval[eval_idx-1][image] for eval_idx in [1, 2, 3, 4, 5, 7, 8]],
+            width=BW,
+            color=get_next_tue_plot_color(image),
+            align="edge",
+            label="left" if image == 0 else "right"
+        )
+        if image == 1: label_xpos = bar_xpos
+        bar_xpos = [pos+BW for pos in bar_xpos]
+
+    ax.set_title("Structural Similarity Index of left/right images compared to their resp. ground truth", fontsize=FONTSIZE)
+    ax.set_ylabel(f"average SSIM", fontsize=FONTSIZE)
+    
+    ax.legend(
+        bbox_to_anchor=(LEGEND_OFFSET_X, LEGEND_OFFSET_Y), 
+        fontsize=FONTSIZE
+    ).get_frame().set_edgecolor(color=rgb.tue_gray)
+
+    plt.xticks(label_xpos, [f"eval{eval_idx}" for eval_idx in [1, 2, 3, 4, 5, 7, 8]], fontsize=FONTSIZE)
+    plt.yticks(fontsize=FONTSIZE)
+
+    # fig.tight_layout()
+    fig.savefig(SAVE_DIR+f"ssim_left_vs_right.pdf")
