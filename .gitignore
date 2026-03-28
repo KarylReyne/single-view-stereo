@@ -62,4 +62,4 @@ latex/**/*.toc
 latex/**/*.pdf
 !latex/report_template/figures/
 !latex/report_template/figures/*.pdf
-
+!latex/report_template/ref_paper/*.pdf
