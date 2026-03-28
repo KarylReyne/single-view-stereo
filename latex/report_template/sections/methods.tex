@@ -1,11 +1,38 @@
 \section{Methods}\label{methods}
 % intro stereodiffusion
-% TODO
+\textbf{StereoDiffusion} \citep{Wang-2024-stereodiffusion} is a method for generating stereo image pairs from a single left-side image. The left image is transformed into latent space and then shifted based on its disparity map. The original and shifted latent representations are denoised seperately by a pre-trained Stable Diffusion \citep{rombach2022highresolutionimagesynthesislatent} model into the output left and right stereo image respectively. In the following, we will give a brief overview of the major components of StereoDiffusion. For a more detailed explanation, see \cite{Wang-2024-stereodiffusion}.
 
-In this work we investigate what impact different alterations of the StereoDiffusion \cite{Wang-2024-stereodiffusion} architecture have on its ability to generate stereo image pairs. Specifically, we propose and evaluate the following modifications to StereoDiffusion: (1) a method for ... (\refsec{depth-to-disparity})
+\begin{figure}[t]
+    \includegraphics[width=\textwidth]{figures/StereoDiffusion_overview.png}
+    \caption{Overview of the StereoDiffusion architecture as proposed by \cite{Wang-2024-stereodiffusion}.}\label{fig:sd_architecture}
+\end{figure}
+
+\reffig{fig:sd_architecture} shows an overview of the StereoDiffusion architecture. Let $X^\text{Left}$ denote a left-side stereo image. First a latent representation $Z_t^\text{Left}$ of $X^\text{Left}$ is sampled from Stable Diffusion (we use \mono{Stable-Diffusion-v1-4}\footnote{\url{https://huggingface.co/CompVis/stable-diffusion-v1-4}}) via Denoising Diffusion Implicit Models (DDIM, \cite{song2020denoising}) sampling. $Z_t^\text{Left}$ is shifted via the \emph{Stereo Pixels Shift} (SPS) operation $\mathcal{S}$ to obtain a latent representation $Z_t^\text{Right}$ for each point $(i,j)$ in the image space given by 
+\begin{align}\label{eq:sps}
+    Z_t^\text{Right}(i,j)=\mathcal{S}(Z_t^\text{Left},D_{X^\text{Left}},s,i,j)=Z_t^\text{Left}(i-sD_{X^\text{Left}}(i,j),j)
+\end{align}
+where $D_{X^\text{Left}}$ is the disparity map of $X^\text{Left}$ and $s$ is a uniform scaling factor that controls the strength of the stereo effect (following \cite{Wang-2024-stereodiffusion}, we use $s=0.8$ for all our experiments). For StereoDiffusion, $D_{X^\text{Left}}$ is estimated with DPT \citep{ranftl2021visiontransformersdenseprediction} but might also be obtained with other methods, such as our \emph{Disparity Computation} (see \refsec{depth-to-disparity}) method. \cite{Wang-2024-stereodiffusion} found that after shifting, the right-side image becomes inconsistent with the left image, especially in areas with large shifting of the subject matter, such as object outlines close to the cameras. This leads to artifacts and shifted areas being interpreted differently during subsequent denoising \citep{Wang-2024-stereodiffusion}. To address this, \cite{Wang-2024-stereodiffusion} propose a \emph{Symmetric Pixel Shift Masking Denoise} (SPSMD) operation that is applied at regular intervals $t'$ during the denoising process: given $Z_{t'-1}^\text{Left}$, $Z_{t'}^\text{Right}$ and a mask $M$ that marks the areas where the pixel shift is applied, the right latent is modified to obtain a new latent $Z_{t'}^{'\text{Right}}$ with
+\begin{align}\label{eq:spsmd}
+    Z_{t'}^{'\text{Right}}(i,j) = 
+    \begin{cases}
+        \mathcal{S}(Z_{t'-1}^\text{Left},D_{X^\text{Left}},s,i,j) &\text{if }M(i,j)=\text{True}\\
+        Z_{t'}^\text{Right}(i,j) &\text{otherwise}
+    \end{cases}
+\end{align}
+The thus modified latent stereo images $Z_{t}^\text{Left}$ and $Z_{t}^{'\text{Right}}$ are fed back into the denoising process of Stable Diffusion until the last latent representations $Z_0^\text{Left}$ and $Z_0^\text{Right}$ are generated, which are then decoded into the output stereo image pair $Y^\text{Left},Y^\text{Right}$.
+
+In this work we investigate what impact different alterations of this architecture have on its ability to generate stereo image pairs. Specifically, we propose and evaluate the following modifications to StereoDiffusion: (1) a method for calculating the disparity map from an estimated depth map and sensor data (\refsec{depth-to-disparity}), (2) utilizing cross-attention \citep{rombach2022highresolutionimagesynthesislatent,vaswani-2017-transformer} instead of uni-/bi-directional attention \citep{Wang-2024-stereodiffusion} (\refsec{cross-attn}), (3) incorporating prompt-based image editing via null-text inversion \citep{mokady2023null} (\refsec{null-text-inv}) and (4) aligning the generated right-side stereo image with the ground truth instead of the generated left image (\refsec{gt-alignment}).
 
 \subsection{Disparity Computation}\label{depth-to-disparity}
-TODO
+Given stereo images with parallel optical axes, the disparity map $D$ can be derived from a depth map $Z$ using
+\begin{align}
+    D(i,j)=\frac{fB}{Z(i,j)}
+\end{align}
+where $(i,j)$ is an arbitrary point in image space, $f$ the focal length and $B$ the baseline distance between the two stereo images \citep{Wang-2024-stereodiffusion}. Since our dataset incorporates extensive sensor data (see \refsec{dataset}), including focal length and baseline distance of the cameras that were used to generate the ground truth images, we can leverage this data and only have to estimate the depth map for the computation of the disparity map that is needed by StereoDiffusion's SPS operation. This allows us to obtain an alternative disparity map $D_\text{comp}$ width
+\begin{align}
+    D_\text{comp}(i,j)=\frac{fB}{Z_{DPT}(i,j)}
+\end{align}
+where $f$ and $B$ are the focal length and baseline distance from our dataset respectively and $Z_{DPT}$ is a depth map estimated with a pretrained DPT model\footnote{\mono{dpt$\_$hybrid-midas-501f0c75}} \citep{ranftl2021visiontransformersdenseprediction}. During inference, we simply replace the original DPT-estimated $D_{X^\text{Left}}$ in \refeq{eq:sps} with $D_\text{comp}$. We term this the Disparity Computation method.  
 
 \subsection{Cross-Attention}\label{cross-attn}
 TODO
@@ -16,6 +43,6 @@ TODO
 \subsection{Ground-truth SPSMD}\label{gt-alignment}
 TODO
 
-\subsection{Custom Disparity Prediction}\label{disp-training}
-TODO
+% briefly mention additional tests (training) 
+% TODO
 
