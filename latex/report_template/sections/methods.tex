@@ -25,17 +25,17 @@ In this work we investigate what impact different alterations of this architectu
 
 \subsection{Disparity Computation}\label{depth-to-disparity}
 Given stereo images with parallel optical axes, the disparity map $D$ can be derived from a depth map $Z$ using
-\begin{align}
+\begin{align}\label{eq:disparity}
     D(i,j)=\frac{fB}{Z(i,j)}
 \end{align}
-where $(i,j)$ is an arbitrary point in image space, $f$ the focal length and $B$ the baseline distance between the two stereo images \citep{Wang-2024-stereodiffusion}. Since our dataset incorporates extensive sensor data (see \refsec{dataset}), including focal length and baseline distance of the cameras that were used to generate the ground truth images, we can leverage this data and only have to estimate the depth map for the computation of the disparity map that is needed by StereoDiffusion's SPS operation. This allows us to obtain an alternative disparity map $D_\text{comp}$ width
-\begin{align}
+where $(i,j)$ is an arbitrary point in image space, $f$ the focal length and $B$ the baseline distance between the two stereo images \citep{Wang-2024-stereodiffusion}. Since our dataset incorporates extensive sensor data (see \refsec{dataset}), including focal length and baseline distance of the cameras that were used to generate the ground truth images, we can leverage this data and only have to estimate the depth map for the computation of the disparity map. This allows us to obtain an alternative disparity map $D_\text{comp}$ with
+\begin{align}\label{eq:new-disparity}
     D_\text{comp}(i,j)=\frac{fB}{Z_{DPT}(i,j)}
 \end{align}
 where $f$ and $B$ are the focal length and baseline distance from our dataset respectively and $Z_{DPT}$ is a depth map estimated with a pretrained DPT model\footnote{\mono{dpt$\_$hybrid-midas-501f0c75}} \citep{ranftl2021visiontransformersdenseprediction}. During inference, we simply replace the original DPT-estimated $D_{X^\text{Left}}$ in \refeq{eq:sps} with $D_\text{comp}$. We term this the Disparity Computation method.  
 
 \subsection{Cross-Attention}\label{cross-attn}
-TODO
+In addition to the novel uni-/bi-directional attention proposed by \cite{Wang-2024-stereodiffusion} for StereoDiffusion, we did limited testing of using cross-attention...
 
 \subsection{Null-text Inversion}\label{null-text-inv}
 TODO
