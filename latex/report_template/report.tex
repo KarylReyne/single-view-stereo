@@ -9,6 +9,26 @@
 \usepackage{subcaption}
 \usepackage{hyperref}
 \usepackage{url}
+\usepackage{listings}
+
+% this is adapted from from the source code of the ScholarCopilot paper published on arxiv.
+\lstset{
+    basicstyle=\ttfamily\small,      % 设定基础字体和字号
+    columns=fullflexible,            % 更美观的宽度控制
+    frame=single,                    % 单一边框
+    breaklines=true,                 % 自动换行
+    breakatwhitespace=true,          % 优先在空白处换行
+    keepspaces=true,                 % 保留空格
+    showspaces=false,                % 不显示空格标记
+    showstringspaces=false,          % 字符串空格不显示特殊标记
+    showtabs=false,                  % 不显示tab标记
+    tabsize=4,                       % tab宽度
+    rulecolor=\color{gray!50},       % 边框颜色
+    backgroundcolor=\color{gray!5},  % 浅色背景
+    language=[LaTeX]TeX,
+    literate={\ \ }{{\ }}1,           % 改善空格显示
+    numbers=none
+}
 
 \newcommand{\refsec}[1]{Sec. \ref{#1}}
 \newcommand{\reffig}[1]{\figurename{ \ref{#1}}}
