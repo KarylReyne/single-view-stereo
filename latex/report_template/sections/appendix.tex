@@ -29,20 +29,21 @@ TODO (maybe)
 % focal length/baseline distance via prompt+qwen
 
 \subsection{Attention Weights of Guidance Prompts}\label{attn-weights}
-TODO % gt left, gt right, gen right
-% \begin{figure}[htb]
-%     \centering
-%     \begin{subfigure}[b]{0.32\linewidth}
-%     \includegraphics[width=\linewidth]{../../latex_template/ex06/images/06-2_midirect-ref.png}
-%     \caption{reference}
-%     \end{subfigure}
-%     \begin{subfigure}[b]{0.32\linewidth}
-%     \includegraphics[width=\linewidth]{../../nori/scenes/ex06/veach_mi/veach_mi-midirect-uniform.png}
-%     \caption{result (with uniform heuristic)}
-%     \end{subfigure}
-%     \begin{subfigure}[b]{0.32\linewidth}
-%     \includegraphics[width=\linewidth]{../../latex_template/ex06/images/06-2_midirect-uniform-diff.png}
-%     \caption{difference}
-%     \end{subfigure}
-%     \caption*{Comparison for \ref{6.2} a)}
-% \end{figure}
+\reffig{fig:attn-maps} shows the aggregated attention scores of a conditioning prompt for a sample from our dataset. The cross-attention module seems to be able to faithfully seperate the concepts for e.g. the tokens \emph{car} and \emph{museum} in the image, while both uni- and bi-directional attention seem to not attend to a particular object in the image for the same tokens. This indicates that uni-/bi-directional attention may be unsuitable for conditioning with null-text inversion, although our evaluation currently does not support this assumption as the mean generation quality of \mono{eval3} is not significantly higher than that of \mono{eval4} (see \reffig{fig:quality-mean}).
+\begin{figure}[htb]
+    \centering
+    \begin{subfigure}{\textwidth}
+        \includegraphics[trim=0 0 5000 0,clip,width=\textwidth]{figures/attention3.png}
+        \caption{Cross-attention (example from \mono{eval3})}
+    \end{subfigure}
+    \begin{subfigure}{\textwidth}
+        \includegraphics[trim=0 0 5000 0,clip,width=\textwidth]{figures/attention4.png}
+        \caption{Uni-directional attention (example from \mono{eval4})}
+    \end{subfigure}
+    \begin{subfigure}{\textwidth}
+        \includegraphics[trim=0 0 5000 0,clip,width=\textwidth]{figures/attention5.png}
+        \caption{Bi-directional attention (example from \mono{eval5})}
+    \end{subfigure}
+    \caption{Attention scores for the first few tokens of the conditioning prompt, averaged over all attention heads. The corresponding input image is generated from the top left scene in \reffig{fig:improved_approach} and is almost identical to the image in that figure.}
+    \label{fig:attn-maps}
+\end{figure}
