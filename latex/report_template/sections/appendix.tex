@@ -23,13 +23,13 @@
 \end{figure}
 
 % eval6 (training)
-\subsection{Trained Disparity Estimation Model}\label{trained-disparity}
-TODO (maybe)
+% \subsection{Trained Disparity Estimation Model}\label{trained-disparity}
+% TODO (maybe)
 
 % focal length/baseline distance via prompt+qwen
 
 \subsection{Attention Weights of Guidance Prompts}\label{attn-weights}
-\reffig{fig:attn-maps} shows the aggregated attention scores of a conditioning prompt for a sample from our dataset. The cross-attention module seems to be able to faithfully seperate the concepts for e.g. the tokens \emph{car} and \emph{museum} in the image, while both uni- and bi-directional attention seem to not attend to a particular object in the image for the same tokens. This indicates that uni-/bi-directional attention may be unsuitable for conditioning with null-text inversion, although our evaluation currently does not support this assumption as the mean generation quality of \mono{eval3} is not significantly higher than that of \mono{eval4} (see \reffig{fig:quality-mean}).
+\reffig{fig:attn-maps} shows the aggregated attention scores of a conditioning prompt for a sample from our dataset. The cross-attention module seems to be able to faithfully seperate the concepts for e.g. the tokens \emph{car} and \emph{museum} in the image, while both uni- and bi-directional attention seem to not attend to a particular object in the image for the same tokens. This indicates that uni-/bi-directional attention may be unsuitable for conditioning with null-text inversion, although our evaluation currently does not support this assumption as the mean generation quality of \mono{eval3} is not significantly higher than that of \mono{eval4} (see \reffig{fig:quality-right-mean}).
 \begin{figure}[htb]
     \centering
     \begin{subfigure}{\textwidth}

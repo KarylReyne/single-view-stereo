@@ -48,7 +48,7 @@ where $\mathcal{C}$ is the embedding of $\mathcal{P}$ and $E,D$ are the image en
 \begin{align}
     \overline{\varepsilon}_\theta(Z_T,\mathcal{C},\emptyset)=w\cdot\varepsilon_\theta(Z_T,\mathcal{C})+(1-w)\cdot\varepsilon_\theta(Z_T,\emptyset)
 \end{align}
-where $w$ is the guidance scale parameter. In comparison to standard CFG, \cite{mokady2023null} achieve accurate reconstruction of the input image while preserving the editability enabled by CFG by optimizing the null text embedding such that the unconditional backward pass accurately reconstructs the input image. For StereoDiffusion, \cite{Wang-2024-stereodiffusion} use this optimized unconditional diffusion to obtain the initial latent representation of the input left-side stereo image $Z_T^\text{Left}$.
+where $w$ is the guidance scale parameter. In comparison to standard CFG, \cite{mokady2023null} achieve accurate reconstruction of the input image while preserving the editability enabled by CFG by optimizing the null text embedding $\emptyset$ such that the unconditional backward pass accurately reconstructs the input image. For StereoDiffusion, \cite{Wang-2024-stereodiffusion} use this optimized unconditional diffusion to obtain the initial latent representation of the input left-side stereo image $Z_T^\text{Left}$. An important consideration when using null-text inversion is that the optimization, which has to be done for each image individually adds around 10-30s per image on a single A100 GPU which currently limits the usefulness of this approach for large-scale applications.
 
 Since null-text inversion was originally proposed for image editing, we did test using it to influence the generation of the right-side stereo image by passing a conditioning prompt of the form
 \begin{lstlisting}
@@ -57,7 +57,16 @@ Since null-text inversion was originally proposed for image editing, we did test
 where \mono{[...]}, \mono{B} and \mono{f} are replaced during inference with the sample-specific values.
 
 \subsection{Ground-truth SPSMD}\label{gt-alignment}
-...
+The Symmetric Pixel Shift Masking Denoise module (see \refeq{eq:spsmd}) copies values from the last $(t-1)$-th latent left image to the current $t$-th latent right image every few time steps (we used every $10$ out of the $50$ total DDIM sampling steps) to increase the alignment of the two images. But, since by design we also have the ground truth left image available (as it is the input for the diffusion model), we do not have to align the right with the generated left (as this is only an approximation of the ground truth, see also \cite{mokady2023null}), we can instead skip generating the left image altogether and align the generated right with the ground truth left image directly. To implement this idea we modified the SPSMD module like so
+\begin{align}\label{eq:gt-align}
+    Z_{t'}^{'\text{Right}}(i,j) &= 
+    \begin{cases}
+        \mathcal{S}(Z_{t'-1}^\text{gt},D_{X^\text{Left}},s,i,j) &\text{if }M(i,j)=\text{True}\\
+        Z_{t'}^\text{Right}(i,j) &\text{otherwise}
+    \end{cases}\\
+        \text{with }&Z_{t'-1}^\text{gt} = \epsilon_{\theta,:t'-1}(E(X^\text{Left}),\emptyset)
+\end{align}
+where $\epsilon_{\theta,:t'-1}$ is the forward diffusion process up to time step $t'-1$. The output of this modified version of StereoDiffusion then becomes $X^\text{Left},Y^\text{Right}$ (which is why in the evaluation (\reffig{fig:left-vs-right-ssim}) the similarity of the output left with the ground truth left image for \mono{eval7} and \mono{eval8} is exactly 1).
 
 % briefly mention additional tests (training) 
 % TODO
