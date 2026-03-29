@@ -32,10 +32,10 @@ where $(i,j)$ is an arbitrary point in image space, $f$ the focal length and $B$
 \begin{align}\label{eq:new-disparity}
     D_\text{comp}(i,j)=\frac{fB}{Z_{DPT}(i,j)}
 \end{align}
-where $f$ and $B$ are the focal length and baseline distance from our dataset respectively and $Z_{DPT}$ is a depth map estimated with a pretrained DPT model\footnote{\mono{dpt$\_$hybrid-midas-501f0c75}} \citep{ranftl2021visiontransformersdenseprediction}. During inference, we simply replace the original DPT-estimated $D_{X^\text{Left}}$ in \refeq{eq:sps} with $D_\text{comp}$. We term this the Disparity Computation method.  
+where $f$ and $B$ are the focal length and baseline distance from our dataset respectively and $Z_{DPT}$ is a depth map estimated with a pretrained DPT model\footnote{\mono{dpt$\_$hybrid-midas-501f0c75}} \citep{ranftl2021visiontransformersdenseprediction,ranftl2020midas}. During inference, we simply replace the original DPT-estimated $D_{X^\text{Left}}$ in \refeq{eq:sps} with $D_\text{comp}$. We term this the Disparity Computation method.  
 
 \subsection{Cross-Attention}\label{cross-attn}
-In addition to the novel uni-/bi-directional attention proposed by \cite{Wang-2024-stereodiffusion} for StereoDiffusion, we did limited testing of using cross-attention...
+In addition to the novel uni-/bi-directional attention proposed by \cite{Wang-2024-stereodiffusion} for StereoDiffusion, we did test using cross-attention which is commonly used for Stable Diffusion-based image generation \citep{rombach2022highresolutionimagesynthesislatent,hertz2022prompt,mokady2023null}. This is because we also evaluate StereoDiffusion with prompt-based conditioning of the generation process (see \refsec{null-text-inv}) and during testing we noticed that uni-/bi-directional attention does not preserve the attention weights of the conditioning prompt (see \refsec{attn-weights} for an example).
 
 \subsection{Null-text Inversion}\label{null-text-inv}
 TODO

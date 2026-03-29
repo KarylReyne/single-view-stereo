@@ -9,6 +9,8 @@ stereoview-venv
 data/galvani/**
 !data/galvani/image_collection
 !data/galvani/image_collection/**/*
+!data/galvani/one_sample
+!data/galvani/one_sample/**/*
 data/eval/**
 data/eval2/**
 data/*.zip

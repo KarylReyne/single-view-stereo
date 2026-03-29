@@ -530,7 +530,13 @@ if __name__ == "__main__":
     qpi_config = get_config(path="../cfg/qwen_config.json")
     os.makedirs(inf_config["output_prefix"], exist_ok=True)
 
-    verbose=inf_config["verbose"]
+    # verbose = inf_config["verbose"]
+
+    # --- get attention maps for the report ---
+    inf_config["dataset_path"] = "../../../data/galvani/one_sample"
+    
+    verbose = True
+    # --- end ----
 
     ldm_stable, depthmodel, disparitymodel, cam_mlp = get_models(inf_config)
 
