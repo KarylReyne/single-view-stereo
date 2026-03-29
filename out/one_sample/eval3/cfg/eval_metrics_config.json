@@ -1,0 +1,34 @@
+{
+    "mean_std_psnr_left": [
+        28.411642760310784,
+        0.0
+    ],
+    "mean_std_ssim_left": [
+        0.8428122224536319,
+        0.0
+    ],
+    "mean_std_lpips_left": [
+        0.06991248577833176,
+        0.0
+    ],
+    "mean_std_psnr_right": [
+        22.749654779716117,
+        0.0
+    ],
+    "mean_std_ssim_right": [
+        0.6945033744372222,
+        0.0
+    ],
+    "mean_std_lpips_right": [
+        0.09968548268079758,
+        0.0
+    ],
+    "mean_std_lpips_deph_to_disp": [
+        0.1019207090139389,
+        0.0
+    ],
+    "mean_std_lpips_disp": [
+        0.10192140191793442,
+        0.0
+    ]
+}

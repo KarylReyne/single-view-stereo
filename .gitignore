@@ -32,6 +32,8 @@ out/**
 !out/eval*
 !out/eval*/cfg
 !out/eval*/cfg/*.json
+!out/one_sample
+!out/one_sample/**
 
 # !out/eval*/*
 # !out/eval*/*/Camera_0*
