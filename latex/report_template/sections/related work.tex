@@ -1,0 +1,11 @@
+\section{Related Work}\label{related work}
+
+Synthesizing stereo views from a single image is closely related to monocular depth estimation, novel view synthesis, and generative diffusion models.
+
+\textbf{Monocular Depth Estimation:} Understanding scene geometry is crucial for stereo synthesis. Early approaches relied on CNNs trained on datasets such as KITTI \citep{6248074}, while more recent methods like DPT \citep{ranftl2021visiontransformersdenseprediction} and MiDaS \citep{ranftl2020midas} use Vision Transformers for robust zero-shot depth estimation. These depth estimates can be converted into disparity maps for pixel-shifting operations \citep{Wang-2024-stereodiffusion}.
+
+\textbf{Generative Diffusion Models:} Diffusion models, including DDIM \citep{song2020denoising} and latent diffusion models (LDMs) \citep{rombach2022highresolutionimagesynthesislatent}, achieve high-quality image synthesis while operating efficiently in latent space. Techniques such as classifier-free guidance \citep{ho2022classifier} and inversion methods like null-text inversion \citep{mokady2023null} improve controllability and enable editing of real images, which we leverage for stereo conditioning.
+
+\textbf{Stereo Image Generation:} Traditional approaches rely on depth-based image rendering (DIBR), which often produces disocclusion artifacts \citep{Wang-2024-stereodiffusion}. Recent work instead leverages diffusion models. While some methods require fine-tuning on stereo datasets, StereoDiffusion \citep{Wang-2024-stereodiffusion} proposes a training-free framework based on latent alignment using Stereo Pixel Shift (SPS). Other approaches explore text-conditioned diffusion \citep{garg2025text2stereo} or 3D-aware representations such as NeRFs \citep{gu2023nerfdiff, Liu-2025-stnerf}, highlighting trade-offs between controllability and geometric consistency.
+
+\textbf{Synthetic Datasets for Stereo Matching:} Due to limited real-world ground-truth depth data, synthetic datasets have become important for stereo tasks. FlyingThings3D \citep{Mayer_2016_CVPR} provides large-scale training data, while recent work \citep{yan2026makesgoodsynthetictraining} highlights the importance of data quality and diversity for generalization. This motivates our use of a high-fidelity synthetic dataset.
