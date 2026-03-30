@@ -40,9 +40,7 @@ In addition to the novel uni-/bi-directional attention proposed by \cite{Wang-20
 \subsection{Null-text Inversion}\label{null-text-inv}
 Null-text inversion \citep{mokady2023null} is a method for text-guided image editing. In the context of image editing with a generative diffusion model $\varepsilon_\theta$ (such as Stable Diffusion), this means that given an image $X$ and a text prompt $\mathcal{P}$, the model should generate an image $X'$ that is different from $X$, such that
 \begin{align}
-    X\neq X' = D(Z_0)\text{ with }Z_0&=\varepsilon_\theta(Z_T,\mathcal{C}) \\
-        Z_T&=E(X) \\
-        \mathcal{C}&=\psi(\mathcal{P})
+    X\neq X' = D(Z_0)\text{ with }Z_0=\varepsilon_\theta(Z_T,\mathcal{C}),Z_T=E(X),\mathcal{C}=\psi(\mathcal{P})
 \end{align}
 where $\mathcal{C}$ is the embedding of $\mathcal{P}$ and $E,D$ are the image encoder and decoder respectively (see also \cite{mokady2023null}). To this end, \cite{mokady2023null} leverage a method for text-guided editing called classifier-free guidance (CFG, \cite{ho2022classifier}) that is used to amplify the influence of the text condition $\mathcal{P}$. CFG performs the diffusion process twice, once with the text condition and once unconditionally with a \emph{null text} embedding $\emptyset=\psi("")$, modifying $\varepsilon_\theta$ to obtain $\overline{\varepsilon}_\theta$ with
 \begin{align}\label{eq:cfg}

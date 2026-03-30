@@ -22,7 +22,7 @@ We structure our evaluation into the following architecture configurations, whic
 If you want to know what happened to \mono{eval6}, refer to \refsec{trained-disparity}.
 
 
-\begin{figure}[htpb]
+\begin{figure}[ht]
 \centering
 \begin{subfigure}{1\textwidth}
     \centering
@@ -32,26 +32,13 @@ If you want to know what happened to \mono{eval6}, refer to \refsec{trained-disp
 \end{subfigure}
 \begin{subfigure}{1\textwidth}
     \centering
-    \includegraphics[width=\linewidth]{figures/eval_quality_left_std.pdf}
-    \caption{Standard deviation (left image)}
-    \label{fig:quality-left-std}
-\end{subfigure}
-\begin{subfigure}{1\textwidth}
-    \centering
     \includegraphics[width=\linewidth]{figures/eval_quality_right_mean.pdf}
     \caption{Average scores (right image)}
     \label{fig:quality-right-mean}
 \end{subfigure}
-\begin{subfigure}{1\textwidth}
-    \centering
-    \includegraphics[width=\linewidth]{figures/eval_quality_right_std.pdf}
-    \caption{Standard deviation (right image)}
-    \label{fig:quality-right-std}
-\end{subfigure}
 \caption{\textbf{Quantitative evaluation of stereo generation quality.} 
-Comparison of PSNR, SSIM, and LPIPS across different evaluation configurations. The scores are min-max-normalised per metric such that they can be shown side-by-side in one plot. Where relevant, the absolute scores are stated in \refsec{quantitative_results}. 
-Top(a and b): left image results; bottom(c and d): right image results. 
-Mean values indicate overall performance, while standard deviation reflects stability across samples. 
+Comparison of PSNR, SSIM, and LPIPS across different evaluation configurations. The scores are min-max-normalised per metric such that they can be shown side-by-side in one plot. Where relevant, the absolute scores are stated in \refsec{quantitative_results}.  
+Mean values indicate overall performance. 
 Lower LPIPS and higher PSNR/SSIM correspond to better quality.}
 \label{fig:quantitative_results}
 \end{figure}
@@ -67,8 +54,6 @@ Finally, ground truth alignment (\mono{eval7} and \mono{eval8}) produces results
 To have a broader vision of this comparative study, we present in \reffig{fig:quality-right-mean} the average values of the mean performances for each configuration.
 
 It is clear from this graph that \mono{eval1} and \mono{eval2} are the ones with the best total score, and also that the methods using prompts and specially \mono{eval5} produce significantly worse results.
-
-In addition, \reffig{fig:quality-right-std} presents the variability of the results across different samples. Lower standard deviations indicate greater stability. The baseline configurations exhibit relatively low variability, whereas prompt-based approaches, particularly \mono{eval5}, show increased instability.
 
 
 \subsection{Qualitative Results}

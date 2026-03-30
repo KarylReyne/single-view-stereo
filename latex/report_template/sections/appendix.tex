@@ -2,7 +2,8 @@
 % if anyone has additional things to show (e.g. evaluation that got cut (eval6), our old geometric shapes dataset, etc.), put that stuff here.
 
 \subsection{Additional Dataset Visualizations}
-\reffig{fig:camera_initialization} shows our custom procedural stereo camera system (see \refsec{dataset-generation}). Examples of the initial and improved Blender scenes we used for generating our dataset samples are shown in \reffig{fig:procedural_approach} and \reffig{fig:improved_approach} respectively (see also \refsec{dataset-ours}). Note that the dataset we used for our final evaluation only consists of samples obtained from the latter scenes.
+\reffig{fig:camera_initialization} shows our custom procedural stereo camera system (see \refsec{dataset-generation}). Examples of the initial and improved Blender scenes we used for generating our dataset samples are shown in \reffig{fig:procedural_approach} and \reffig{fig:improved_approach} respectively (see also \refsec{dataset-ours}). Note that the dataset we used for our final evaluation only consists of samples obtained from the latter scenes. \reffig{fig:dino_example} shows a sample of our dataset.
+
 \begin{figure}[ht]
     \centering
     \includegraphics[width=1.0\linewidth]{figures/camera_initialization.png}
@@ -22,6 +23,13 @@
     \includegraphics[width=1.0\linewidth]{figures/improved_approach.png}
     \caption{Improved approach}
     \label{fig:improved_approach}
+\end{figure}
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=\linewidth]{figures/dino_example.png}
+    \caption{Example sample, from left to right: depth map, disparity map, left image, right image. This stereo image pair has a baseline distance of 0.1 m and a focal length of 38.4 mm.}
+    \label{fig:dino_example}
 \end{figure}
 
 % eval6 (training)
@@ -90,3 +98,34 @@ Lower LPIPS and higher PSNR/SSIM correspond to better quality.}
     \caption{Attention scores for the first few tokens of an example conditioning prompt, averaged over all attention heads. The corresponding input image is generated from the top left scene in \reffig{fig:improved_approach} and is almost identical to the image in that figure.}
     \label{fig:attn-maps}
 \end{figure}
+
+\subsection{Additional Quantitative Evaluation}
+\reffig{fig:quality-right-std} presents the variability of the results across different samples. Lower standard deviations indicate greater stability. The baseline configurations exhibit relatively low variability, whereas prompt-based approaches, particularly \mono{eval5}, show increased instability.
+
+\begin{figure}[ht]
+\centering
+\begin{subfigure}{1\textwidth}
+    \centering
+    \includegraphics[width=\linewidth]{figures/eval_quality_left_std.pdf}
+    \caption{Standard deviation (left image)}
+    \label{fig:quality-left-std}
+\end{subfigure}
+\begin{subfigure}{1\textwidth}
+    \centering
+    \includegraphics[width=\linewidth]{figures/eval_quality_right_std.pdf}
+    \caption{Standard deviation (right image)}
+    \label{fig:quality-right-std}
+\end{subfigure}
+\caption{\textbf{Quantitative evaluation of stereo generation quality.} 
+Comparison of PSNR, SSIM, and LPIPS across different evaluation configurations. The scores are min-max-normalised per metric such that they can be shown side-by-side in one plot.
+Standard deviation reflects stability across samples. 
+Lower LPIPS and higher PSNR/SSIM correspond to better quality.}
+\label{fig:quantitative_results_std}
+\end{figure}
+
+\subsection{Author Contributions}
+\textbf{Niklas} contributed to all major parts of the project, especially the implementation of the evaluation pipeline.
+
+\textbf{Ronny} contributed to all major parts of the project, especially created the new dataset based on the old dataset (from Julian, who left the group) and started with the evaluation. 
+
+\textbf{next person here ;)} TODO
