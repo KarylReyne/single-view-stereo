@@ -1,5 +1,144 @@
 \section{Experiments}\label{experiments}
-TODO
+\subsection{Evaluation Methodology}\label{eval-method}
+We compare our proposed changes (see \refsec{depth-to-disparity} to \refsec{gt-alignment}) against the StereoDiffusion implementation\footnote{\url{https://github.com/lez-s/StereoDiffusion}} provided by \cite{Wang-2024-stereodiffusion}. Following their implementation, we use \mono{Stable-Diffusion-v1-4}\footnote{\url{https://huggingface.co/CompVis/stable-diffusion-v1-4}} \citep{rombach2022highresolutionimagesynthesislatent} as the diffusion model and the depth estimation model \mono{dpt$\_$hybrid-midas-501f0c75}\footnote{\url{https://github.com/intel-isl/DPT/releases/download/1_0/dpt_hybrid-midas-501f0c75.pt}} \citep{ranftl2021visiontransformersdenseprediction,ranftl2020midas} for estimating the disparity/depth maps (see \refsec{depth-to-disparity}). To implement cross-attention (\refsec{cross-attn}) and image editing with null-text inversion (\refsec{null-text-inv}), we use a slightly modified version of prompt-to-prompt\footnote{\url{https://github.com/google/prompt-to-prompt}} \citep{hertz2022prompt,mokady2023null}. StereoDiffusion is run for all experiments (see below) on a fixed set of 1k samples drawn randomly from our dataset. The image reconstruction is run for 50 DDIM sampling steps (see \cite{song2020denoising}) with SPSMD (\refeq{eq:spsmd}) run every 10 steps and a uniform guidance scale of 7.5 (see \refsec{null-text-inv}, particularly \refeq{eq:cfg}). 
 
-\label{fig:quality-right-mean} % bitte der betreffenden figure hinzufügen!
+We structure our evaluation into the following architecture configurations, which are all run on the same dataset samples:
+\begin{itemize}
+    \item[\mono{eval1}]
+        This model setup consists of StereoDiffusion\footnote{This refers to StereoDiffusion with DPT-estimated disparity, null-text optimized reconstruction of the right image, uni-directional attention and SPSMD alignment with the generated left image if not stated otherwise.}. We use it as the baseline for our evaluation.
+    \item[\mono{eval2}]
+        This model setup consists of StereoDiffusion with Disparity Computation (see \refsec{depth-to-disparity}).
+    \item[\mono{eval3}]
+        This model setup consists of StereoDiffusion with cross-attention (see \refsec{cross-attn}).
+    \item[\mono{eval4}]
+        This model setup consists of StereoDiffusion with an additional editing prompt for the reconstruction of the right image (see \refsec{null-text-inv}).
+    \item[\mono{eval5}]
+        This model setup consists of StereoDiffusion with bi-directional attention and an additional editing prompt.
+    \item[\mono{eval7}]
+        This model setup consists of StereoDiffusion with ground truth SPSMD (see \refsec{gt-alignment}).
+    \item[\mono{eval8}]
+        This model setup consists of StereoDiffusion with an additional editing prompt and ground truth SPSMD.
+\end{itemize}
+If you want to know what happened to \mono{eval6}, refer to \refsec{trained-disparity}.
+
+
+\begin{figure}[htpb]
+\centering
+\begin{subfigure}{1\textwidth}
+    \centering
+    \includegraphics[width=\linewidth]{figures/eval_quality_left_mean.pdf}
+    \caption{Average scores (left image)}
+    \label{fig:quality-left-mean}
+\end{subfigure}
+\begin{subfigure}{1\textwidth}
+    \centering
+    \includegraphics[width=\linewidth]{figures/eval_quality_left_std.pdf}
+    \caption{Standard deviation (left image)}
+    \label{fig:quality-left-std}
+\end{subfigure}
+\begin{subfigure}{1\textwidth}
+    \centering
+    \includegraphics[width=\linewidth]{figures/eval_quality_right_mean.pdf}
+    \caption{Average scores (right image)}
+    \label{fig:quality-right-mean}
+\end{subfigure}
+\begin{subfigure}{1\textwidth}
+    \centering
+    \includegraphics[width=\linewidth]{figures/eval_quality_right_std.pdf}
+    \caption{Standard deviation (right image)}
+    \label{fig:quality-right-std}
+\end{subfigure}
+\caption{\textbf{Quantitative evaluation of stereo generation quality.} 
+Comparison of PSNR, SSIM, and LPIPS across different evaluation configurations. 
+Top(a and b): left image results; bottom(c and d): right image results. 
+Mean values indicate overall performance, while standard deviation reflects stability across samples. 
+Lower LPIPS and higher PSNR/SSIM correspond to better quality.}
+\label{fig:quantitative_results}
+\end{figure}
+
+\subsection{Quantitative Results}
+The quantitative evaluation results are shown in \reffig{fig:quantitative_results}. We evaluate the quality of generated stereo images via PSNR, SSIM, and LPIPS. These metrics represent the pixel-wise accuracy, the structure of the image, and the percptual quality. Table 1 provides an overview of all the results obtained through all possible configurations. The best performance was obtained by the baseline configuration (\mono{eval1}) which follows closely the original StereoDiffusion configuration. With respect to the right view, this configuration reaches the highest reconstruction quality among all evaluated variants (19.16 PSNR, 0.618 SSIM, and 0.106 LPIPS).
+
+Replacing the DPT-estimated disparity with Disparity Computation (\mono{eval2}) yields similar results (PSNR 19.15, SSIM 0.618, LPIPS 0.106), thus showing that a depth based approach to compute disparities may be used without affecting the quality of the reconstructed stereo images. On the other hand, when including a conditional prompt, there is a consistent degradation in terms of performance. For instance, \mono{eval3} (with prompt+cross-attention) resulted in PSNR=18.67, SSIM=0.601, and LPIPS =0.126. In contrast, \mono{eval4} (with prompt + uni-directional attention) yielded better results but inferior compared to the default configuration (PSNR = 18.91 and LPIPS = 0.120). The worst performance was observed for \mono{eval5} (with bi-directional attention) which presented a huge reduction in terms of PSNR to 17.27 and a huge increase in LPIPS to 0.186, revealing important degradation both at the structural level and at the perceptive level.
+
+Furthermore, these results confirm that uni-directional attention is more stable than cross-attention or bi-directional attention. The performance gap between \mono{eval4} (uni-directional) and \mono{eval5} (bi-directional) illustrate how more complex attention mechanisms can negatively affect geometric coherence in a training-free setting.
+
+Finally, ground truth alignment (\mono{eval7} and \mono{eval8}) produces results close to those of the default configuration. Here \mono{eval7} achieves PSNR = 19.04, SSIM = 0.609, and LPIPS = 0.107 while \mono{eval8} exhibits slightly worse performance with PSNR = 18.97 and LPIPS = 0.114. Therefore, it appears that the alignment strategy has only a minor influence on the overall performance.
+To have a broader vision of this comparative study, we present in \reffig{fig:quality-right-mean} the average values of the mean performances for each configuration.
+
+It is clear from this graph that \mono{eval1} and \mono{eval2} are the ones with the best total score, and also that the methods using prompts and specially \mono{eval5} produce significantly worse results.
+
+In addition, \reffig{fig:quality-right-std} presents the variability of the results across different samples. Lower standard deviations indicate greater stability. The baseline configurations exhibit relatively low variability, whereas prompt-based approaches, particularly \mono{eval5}, show increased instability.
+
+
+\subsection{Qualitative Results}
+To supplement the quantitative assessment, we analysed exemplary samples of the created stereo pairs under the various conditions (\mono{eval1} – \mono{eval8}). Specifically, we illustrate a successful reconstruction scenario along with an illustrative failure case demonstrating how the model displays highly variable behavior based upon the input scene.
+
+The first example (\reffig{fig:quality-right-1}) illustrates how the generated right view images correspond closely with the reference ground truth image. Regardless of configuration (\mono{eval2}, \mono{eval3}, \mono{eval5}, \mono{eval8}), the model consistently represents the overall structural integrity of the scene and maintains local detail relevant to the scene. The shape of the car, specifically the front grill, head lights, and wheel placement was similarly consistent with the reference images. Additionally, the model maintains the relative positions of foreground objects to those in the background, and thus effectively represents the underlying stereo geometry.
+
+Discrepancies between the generated images and the reference images were minor and generally related to variations in surface textures, reflections, in addition to light variations. Although certain configurations performed poorly when assessed quantitatively, they produced visually acceptable representations for this example; thus, scenes containing clear geometric definition and defined depth information are represented by the model with reliability.
+
+\begin{figure}[ht]
+\centering
+\begin{minipage}{0.45\textwidth}
+    \centering
+    \includegraphics[width=\linewidth]{figures/rightgroundtruthcar.png}
+    \caption*{Ground Truth}
+\end{minipage}
+\begin{minipage}{0.5\textwidth}
+    \centering
+    \begin{subfigure}{0.48\linewidth}
+        \includegraphics[width=\linewidth]{figures/right_gen2.png}
+        \caption*{\mono{eval2}}
+    \end{subfigure}
+    \begin{subfigure}{0.48\linewidth}
+        \includegraphics[width=\linewidth]{figures/right_gen3.png}
+        \caption*{\mono{eval3}}
+    \end{subfigure}
+    \begin{subfigure}{0.48\linewidth}
+        \includegraphics[width=\linewidth]{figures/right_gen4.png}
+        \caption*{\mono{eval4}}
+    \end{subfigure}
+    \begin{subfigure}{0.48\linewidth}
+        \includegraphics[width=\linewidth]{figures/right_gen8.png}
+        \caption*{\mono{eval8}}
+    \end{subfigure}
+\end{minipage}
+\caption{Qualitative comparison of generated right-view images. The ground truth image (left) is compared to different evaluation configurations (right).}
+\label{fig:quality-right-1}
+\end{figure}
+
+In contrast, the second example (\reffig{fig:quality-right-2}) demonstrates a poor representation of the scene, as illustrated by the significant discrepancy of the generated right view images versus the ground truth image. When comparing all of the evaluated configurations (\mono{eval1}, \mono{eval4}, \mono{eval6} and \mono{eval7}) in generating the images of the right view, the models generate structurally inconsistent and partial hallucination results. Although the entire scene appears to represent a dinosaur skeleton, individual bones appear deformed, disconnected or incorrect in their shape, and in several instances the model generates additional structures or removes critical structural components. Due to these failures in maintaining consistency, the alignment of the left and right view images is disrupted and depth relationships become unplausible. These types of errors are even more evident when examining areas with geometric complexity and repetitive structures that indicate that the model has difficulty maintaining consistent disparity in such scenes.
+
+\begin{figure}[ht]
+\centering
+\begin{minipage}{0.45\textwidth}
+    \centering
+    \includegraphics[width=\linewidth]{figures/rightgroundtruthdino.jpg}
+    \caption*{Ground Truth}
+\end{minipage}
+\begin{minipage}{0.5\textwidth}
+    \centering
+    \begin{subfigure}{0.48\linewidth}
+        \includegraphics[width=\linewidth]{figures/right_gen1.png}
+        \caption*{\mono{eval1}}
+    \end{subfigure}
+    \begin{subfigure}{0.48\linewidth}
+        \includegraphics[width=\linewidth]{figures/right_gen44.png}
+        \caption*{\mono{eval4}}
+    \end{subfigure}
+    \begin{subfigure}{0.48\linewidth}
+        \includegraphics[width=\linewidth]{figures/right_gen6.png}
+        \caption*{\mono{eval6}}
+    \end{subfigure}
+    \begin{subfigure}{0.48\linewidth}
+        \includegraphics[width=\linewidth]{figures/right_gen7.png}
+        \caption*{\mono{eval7}}
+    \end{subfigure}
+\end{minipage}
+\caption{Qualitative comparison of generated right-view images. The ground truth image (left) is compared to different evaluation configurations (right).}
+\label{fig:quality-right-2}
+\end{figure}
+
+
 \label{fig:left-vs-right-ssim} % bitte der betreffenden figure hinzufügen!

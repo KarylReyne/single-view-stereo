@@ -19,7 +19,7 @@ where $D_{X^\text{Left}}$ is the disparity map of $X^\text{Left}$ and $s$ is a u
         Z_{t'}^\text{Right}(i,j) &\text{otherwise}
     \end{cases}
 \end{align}
-The thus modified latent stereo images $Z_{t}^\text{Left}$ and $Z_{t}^{'\text{Right}}$ are fed back into the denoising process of Stable Diffusion (we use \mono{Stable-Diffusion-v1-4}\footnote{\url{https://huggingface.co/CompVis/stable-diffusion-v1-4}}) until the last latent representations $Z_0^\text{Left}$ and $Z_0^\text{Right}$ are generated, which are then decoded into the output stereo image pair $Y^\text{Left},Y^\text{Right}$.
+The thus modified latent stereo images $Z_{t}^\text{Left}$ and $Z_{t}^{'\text{Right}}$ are fed back into the denoising process of Stable Diffusion until the last latent representations $Z_0^\text{Left}$ and $Z_0^\text{Right}$ are generated, which are then decoded into the output stereo image pair $Y^\text{Left},Y^\text{Right}$.
 
 In this work we investigate what impact different alterations of this architecture have on its ability to generate stereo image pairs. Specifically, we propose and evaluate the following modifications to StereoDiffusion: (1) a method for calculating the disparity map from an estimated depth map and sensor data (\refsec{depth-to-disparity}), (2) utilizing cross-attention \citep{rombach2022highresolutionimagesynthesislatent,vaswani-2017-transformer} instead of uni-/bi-directional attention \citep{Wang-2024-stereodiffusion} (\refsec{cross-attn}), (3) incorporating prompt-based image editing via null-text inversion \citep{mokady2023null} (\refsec{null-text-inv}) and (4) aligning the generated right-side stereo image with the ground truth instead of the generated left image (\refsec{gt-alignment}).
 
@@ -45,7 +45,7 @@ Null-text inversion \citep{mokady2023null} is a method for text-guided image edi
         \mathcal{C}&=\psi(\mathcal{P})
 \end{align}
 where $\mathcal{C}$ is the embedding of $\mathcal{P}$ and $E,D$ are the image encoder and decoder respectively (see also \cite{mokady2023null}). To this end, \cite{mokady2023null} leverage a method for text-guided editing called classifier-free guidance (CFG, \cite{ho2022classifier}) that is used to amplify the influence of the text condition $\mathcal{P}$. CFG performs the diffusion process twice, once with the text condition and once unconditionally with a \emph{null text} embedding $\emptyset=\psi("")$, modifying $\varepsilon_\theta$ to obtain $\overline{\varepsilon}_\theta$ with
-\begin{align}
+\begin{align}\label{eq:cfg}
     \overline{\varepsilon}_\theta(Z_T,\mathcal{C},\emptyset)=w\cdot\varepsilon_\theta(Z_T,\mathcal{C})+(1-w)\cdot\varepsilon_\theta(Z_T,\emptyset)
 \end{align}
 where $w$ is the guidance scale parameter. In comparison to standard CFG, \cite{mokady2023null} achieve accurate reconstruction of the input image while preserving the editability enabled by CFG by optimizing the null text embedding $\emptyset$ such that the unconditional backward pass accurately reconstructs the input image. For StereoDiffusion, \cite{Wang-2024-stereodiffusion} use this optimized unconditional diffusion to obtain the initial latent representation of the input left-side stereo image $Z_T^\text{Left}$. An important consideration when using null-text inversion is that the optimization, which has to be done for each image individually adds around 10-30s per image on a single A100 GPU which currently limits the usefulness of this approach for large-scale applications.
