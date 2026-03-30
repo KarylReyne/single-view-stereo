@@ -49,14 +49,14 @@ If you want to know what happened to \mono{eval6}, refer to \refsec{trained-disp
     \label{fig:quality-right-std}
 \end{subfigure}
 \caption{\textbf{Quantitative evaluation of stereo generation quality.} 
-Comparison of PSNR, SSIM, and LPIPS across different evaluation configurations. 
+Comparison of PSNR, SSIM, and LPIPS across different evaluation configurations. The scores are min-max-normalised per metric such that they can be shown side-by-side in one plot. Where relevant, the absolute scores are stated in \refsec{quantitative_results}. 
 Top(a and b): left image results; bottom(c and d): right image results. 
 Mean values indicate overall performance, while standard deviation reflects stability across samples. 
 Lower LPIPS and higher PSNR/SSIM correspond to better quality.}
 \label{fig:quantitative_results}
 \end{figure}
 
-\subsection{Quantitative Results}
+\subsection{Quantitative Results}\label{quantitative_results}
 The quantitative evaluation results are shown in \reffig{fig:quantitative_results}. We evaluate the quality of generated stereo images via PSNR, SSIM, and LPIPS. These metrics represent the pixel-wise accuracy, the structure of the image, and the percptual quality. Table 1 provides an overview of all the results obtained through all possible configurations. The best performance was obtained by the baseline configuration (\mono{eval1}) which follows closely the original StereoDiffusion configuration. With respect to the right view, this configuration reaches the highest reconstruction quality among all evaluated variants (19.16 PSNR, 0.618 SSIM, and 0.106 LPIPS).
 
 Replacing the DPT-estimated disparity with Disparity Computation (\mono{eval2}) yields similar results (PSNR 19.15, SSIM 0.618, LPIPS 0.106), thus showing that a depth based approach to compute disparities may be used without affecting the quality of the reconstructed stereo images. On the other hand, when including a conditional prompt, there is a consistent degradation in terms of performance. For instance, \mono{eval3} (with prompt+cross-attention) resulted in PSNR=18.67, SSIM=0.601, and LPIPS =0.126. In contrast, \mono{eval4} (with prompt + uni-directional attention) yielded better results but inferior compared to the default configuration (PSNR = 18.91 and LPIPS = 0.120). The worst performance was observed for \mono{eval5} (with bi-directional attention) which presented a huge reduction in terms of PSNR to 17.27 and a huge increase in LPIPS to 0.186, revealing important degradation both at the structural level and at the perceptive level.
