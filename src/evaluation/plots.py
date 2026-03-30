@@ -142,12 +142,12 @@ if __name__ == "__main__":
             ])
 
     fig, ax = plt.subplots(figsize=(FIG_W,FIG_H))
-    bar_xpos = range(7) # -eval6
+    bar_xpos = range(8)
     label_xpos = None
     for image in [0, 1]:
         ax.bar(
             bar_xpos,
-            [scores_per_eval[eval_idx-1][image] for eval_idx in [1, 2, 3, 4, 5, 7, 8]],
+            [scores_per_eval[eval_idx-1][image] for eval_idx in [1, 2, 3, 4, 5, 6, 7, 8]],
             width=BW,
             color=get_next_tue_plot_color(image),
             align="edge",
@@ -164,7 +164,7 @@ if __name__ == "__main__":
         fontsize=FONTSIZE
     ).get_frame().set_edgecolor(color=rgb.tue_gray)
 
-    plt.xticks(label_xpos, [f"eval{eval_idx}" for eval_idx in [1, 2, 3, 4, 5, 7, 8]], fontsize=FONTSIZE)
+    plt.xticks(label_xpos, [f"eval{eval_idx}" for eval_idx in [1, 2, 3, 4, 5, 6, 7, 8]], fontsize=FONTSIZE)
     plt.yticks(fontsize=FONTSIZE)
 
     # fig.tight_layout()

@@ -1,21 +1,23 @@
 \section{Supplementary Material}\label{appendix}
 % if anyone has additional things to show (e.g. evaluation that got cut (eval6), our old geometric shapes dataset, etc.), put that stuff here.
 
-\begin{figure}[htpb]
+\subsection{Additional Dataset Visualizations}
+\reffig{fig:camera_initialization} shows our custom procedural stereo camera system (see \refsec{dataset-generation}). Examples of the initial and improved Blender scenes we used for generating our dataset samples are shown in \reffig{fig:procedural_approach} and \reffig{fig:improved_approach} respectively (see also \refsec{dataset-ours}). Note that the dataset we used for our final evaluation only consists of samples obtained from the latter scenes.
+\begin{figure}[ht]
     \centering
     \includegraphics[width=1.0\linewidth]{figures/camera_initialization.png}
     \caption{Camera initialization}
     \label{fig:camera_initialization}
 \end{figure}
 
-\begin{figure}[htpb]
+\begin{figure}[ht]
     \centering
     \includegraphics[width=1.0\linewidth]{figures/procedural_approach.png}
     \caption{Procedural approach}
     \label{fig:procedural_approach}
 \end{figure}
 
-\begin{figure}[htpb]
+\begin{figure}[ht]
     \centering
     \includegraphics[width=1.0\linewidth]{figures/improved_approach.png}
     \caption{Improved approach}
@@ -59,7 +61,15 @@ Lower LPIPS and higher PSNR/SSIM correspond to better quality.}
 \label{fig:quantitative_eval6}
 \end{figure}
 
-% focal length/baseline distance via prompt+qwen
+
+\subsection{Left vs. Right Geometric Consistency Preservation}\label{left-right-ssim}
+\reffig{fig:comparison-ssim} plots the structural similarity to the ground truth for the left and right generated images for each model setup side-by-side.
+\begin{figure}[t]
+    \includegraphics[width=\textwidth]{figures/ssim_left_vs_right.pdf}
+    \caption{Comparison of the achieved SSIM scores between the generated left and right stereo images. Shown is the average score over all evaluation samples. This plot is \textbf{not} min-max-normalised.}
+    \label{fig:comparison-ssim}
+\end{figure}
+
 
 \subsection{Attention Weights of Guidance Prompts}\label{attn-weights}
 \reffig{fig:attn-maps} shows the aggregated attention scores of a conditioning prompt for a sample from our dataset. The cross-attention module seems to be able to faithfully seperate the concepts for e.g. the tokens \emph{car} and \emph{museum} in the image, while both uni- and bi-directional attention seem to not attend to a particular object in the image for the same tokens. This indicates that uni-/bi-directional attention may be unsuitable for conditioning with null-text inversion, although our evaluation currently does not support this assumption as the mean generation quality of \mono{eval3} is not significantly higher than that of \mono{eval4} (see \reffig{fig:quality-right-mean}).
