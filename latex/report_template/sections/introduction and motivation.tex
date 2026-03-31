@@ -6,7 +6,10 @@ The core difficulty in single-view to stereo synthesis lies in recovering the un
 
 Recent advances in generative models, particularly diffusion models, offer a promising direction. Models such as Stable Diffusion \citep{rombach2022highresolutionimagesynthesislatent} are trained on large-scale image datasets and learn strong implicit structural and geometric priors about object shapes, textures, and lighting. In this project, we build upon the \textit{StereoDiffusion} framework \citep{Wang-2024-stereodiffusion}, a training-free approach that manipulates the latent space of a pre-trained diffusion model to generate stereo pairs.
 
-\textbf{Our Contributions.}
-While StereoDiffusion provides a strong baseline, it is highly dependent on the quality of the disparity map and can introduce geometric inconsistencies. In this work, we systematically investigate several modifications to this framework. First, we derive disparity maps from estimated depth maps combined with known camera parameters such as focal length and baseline distance. Second, we evaluate cross-attention \citep{vaswani-2017-transformer, hertz2022prompt} as an alternative to uni-directional attention for conditioned generation. Third, we integrate null-text inversion \citep{mokady2023null} to enable text-guided modifications of the generated stereo views. Finally, we modify the SPSMD step to align latent representations directly with the ground-truth left image, reducing approximation errors during generation.
-
-To enable a controlled and fair evaluation, we additionally introduce a synthetic dataset generated in Blender, providing accurate ground-truth depth and disparity maps \citep{Mayer_2016_CVPR, yan2026makesgoodsynthetictraining}.
+\textbf{Our contributions are:}
+\begin{itemize}
+\item We provide a systematic analysis of conditioning strategies in training-free stereo diffusion and show that additional conditioning can degrade geometric consistency.
+\item We introduce a disparity computation method based on depth and camera parameters that achieves performance comparable to learned disparity estimation.
+\item We present a synthetic stereo dataset with ground-truth depth and disparity for controlled evaluation.
+\item We demonstrate that simple baseline configurations outperform more complex attention and prompt-based approaches.
+\end{itemize}
